@@ -26,6 +26,9 @@ export default function Home() {
       <div className="text-center py-12 sm:py-16 relative px-4">
         <div className="absolute top-4 right-4 sm:top-6 sm:right-6">
           <div className="flex items-center gap-2 sm:gap-3">
+            <Button variant="ghost" size="sm" asChild>
+              <a href="/about">About</a>
+            </Button>
             <ThemeToggle />
             <SignedOut>
               <SignInButton>
