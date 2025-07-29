@@ -1,35 +1,72 @@
-[![CodeGuide](/codeguide-backdrop.svg)](https://codeguide.dev)
+# Git Search
 
-# CodeGuide Starter Kit Lite v2
+[![Next.js](https://img.shields.io/badge/Next.js-15-black)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)](https://www.typescriptlang.org/)
+[![Supabase](https://img.shields.io/badge/Supabase-green)](https://supabase.com/)
+[![AI Powered](https://img.shields.io/badge/AI-Powered-purple)](https://sdk.vercel.ai/)
 
-A modern web application starter template built with Next.js 15, featuring authentication, database integration, AI capabilities, and dark mode support.
+A powerful search engine that provides GitHub repositories with advanced statistics, AI-generated summaries, and intelligent discovery features. Go beyond basic GitHub search with comprehensive analytics, repository health metrics, and AI-powered insights to discover the perfect repositories for your needs.
 
-## Tech Stack
+## ✨ Features
 
-- **Framework:** [Next.js 15](https://nextjs.org/) (App Router)
-- **Language:** TypeScript
-- **Authentication:** [Clerk](https://clerk.com/)
-- **Database:** [Supabase](https://supabase.com/)
-- **Styling:** [Tailwind CSS v4](https://tailwindcss.com/)
-- **UI Components:** [shadcn/ui](https://ui.shadcn.com/)
-- **AI Integration:** [Vercel AI SDK](https://sdk.vercel.ai/)
-- **Theme System:** [next-themes](https://github.com/pacocoursey/next-themes)
+### 🔍 **Advanced Search & Discovery**
+- **Semantic Search**: Find repositories by meaning, not just keywords
+- **Multi-Criteria Filtering**: Language, stars, forks, activity, license, size
+- **Smart Recommendations**: Discover similar and related repositories
+- **Trending Analysis**: Real-time trending repositories and topics
+- **Saved Searches**: Bookmark and track your favorite search queries
 
-## Prerequisites
+### 📊 **Comprehensive Repository Analytics**
+- **Repository Health Score**: Composite metrics for overall project quality
+- **Activity Patterns**: Commit frequency, contributor growth, and development velocity
+- **Community Metrics**: Issue response times, maintainer activity, community engagement
+- **Code Quality Indicators**: Documentation quality, test coverage insights
+- **Dependency Analysis**: Package dependencies and security insights
+- **Historical Trends**: Star growth, fork patterns, and popularity evolution
 
-Before you begin, ensure you have the following:
-- Node.js 18+ installed
-- A [Clerk](https://clerk.com/) account for authentication
-- A [Supabase](https://supabase.com/) account for database
-- Optional: [OpenAI](https://platform.openai.com/) or [Anthropic](https://console.anthropic.com/) API key for AI features
-- Generated project documents from [CodeGuide](https://codeguide.dev/) for best development experience
+### 🤖 **AI-Powered Insights**
+- **Intelligent Summaries**: Auto-generated explanations of what each repository does
+- **Technology Stack Analysis**: Detailed breakdown of languages, frameworks, and tools
+- **Use Case Identification**: Understand when and why to use a repository
+- **Complexity Assessment**: Difficulty levels for contributors and users
+- **Architecture Insights**: Project structure and design pattern analysis
 
-## Getting Started
+### 🎯 **Enhanced User Experience**
+- **Personalized Dashboard**: Track repositories, searches, and insights
+- **Repository Collections**: Organize repositories into custom lists
+- **Comparison Tools**: Side-by-side repository feature comparisons
+- **Real-time Updates**: Live statistics and notification system
+- **Export & Integration**: Share findings and integrate with development tools
+
+## 🚀 Tech Stack
+
+- **Frontend**: [Next.js 15](https://nextjs.org/) with App Router and React 19
+- **Language**: TypeScript with strict mode
+- **Styling**: [Tailwind CSS v4](https://tailwindcss.com/) with dark mode support
+- **UI Components**: [shadcn/ui](https://ui.shadcn.com/) (40+ components)
+- **Authentication**: [Clerk](https://clerk.com/) with middleware protection
+- **Database**: [Supabase](https://supabase.com/) with Row Level Security
+- **AI Integration**: [Vercel AI SDK](https://sdk.vercel.ai/) with OpenAI & Anthropic support
+- **APIs**: GitHub REST API and GraphQL API
+- **Search**: Advanced indexing and semantic search capabilities
+- **Theme**: [next-themes](https://github.com/pacocoursey/next-themes) with system preference detection
+
+## 📋 Prerequisites
+
+Before you begin, ensure you have:
+
+- **Node.js 18+** installed
+- **GitHub Personal Access Token** for API access
+- **[Clerk](https://clerk.com/) account** for authentication
+- **[Supabase](https://supabase.com/) account** for database
+- **AI API keys** (optional): [OpenAI](https://platform.openai.com/) or [Anthropic](https://console.anthropic.com/)
+
+## 🛠️ Installation
 
 1. **Clone the repository**
    ```bash
-   git clone <repository-url>
-   cd codeguide-starter-kit-lite-v2
+   git clone https://github.com/RafiulM/git-search.git
+   cd git-search
    ```
 
 2. **Install dependencies**
@@ -41,146 +78,201 @@ Before you begin, ensure you have the following:
    pnpm install
    ```
 
-3. **Environment Variables Setup**
-   - Copy the `.env.example` file to `.env.local`:
-     ```bash
-     cp .env.example .env.local
-     ```
-   - Fill in the environment variables in `.env.local` (see Configuration section below)
-
-4. **Start the development server**
+3. **Environment Setup**
    ```bash
-   npm run dev
-   # or
-   yarn dev
-   # or
-   pnpm dev
+   cp .env.example .env.local
+   ```
+   
+   Fill in your environment variables (see [Configuration](#-configuration) section below)
+
+4. **Database Setup**
+   ```bash
+   # Run Supabase migrations
+   npx supabase db push
    ```
 
-5. **Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.**
+5. **Start the development server**
+   ```bash
+   npm run dev
+   ```
 
-The homepage includes a setup dashboard with direct links to configure each service.
+6. **Open [http://localhost:3000](http://localhost:3000)** to see the application
 
-## Configuration
+## ⚙️ Configuration
 
-### Clerk Setup
-1. Go to [Clerk Dashboard](https://dashboard.clerk.com/)
-2. Create a new application
-3. Go to API Keys
-4. Copy the `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY`
+### Required Environment Variables
 
-### Supabase Setup
-1. Go to [Supabase Dashboard](https://supabase.com/dashboard)
-2. Create a new project
-3. Go to Authentication → Integrations → Add Clerk (for third-party auth)
-4. Go to Project Settings > API
-5. Copy the `Project URL` as `NEXT_PUBLIC_SUPABASE_URL`
-6. Copy the `anon` public key as `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-
-### AI Integration Setup (Optional)
-1. Go to [OpenAI Platform](https://platform.openai.com/) or [Anthropic Console](https://console.anthropic.com/)
-2. Create an API key
-3. Add to your environment variables
-
-## Environment Variables
-
-Create a `.env.local` file in the root directory with the following variables:
+Create a `.env.local` file with the following variables:
 
 ```env
-# Clerk Authentication
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=your_publishable_key
-CLERK_SECRET_KEY=your_secret_key
+# GitHub API Access
+GITHUB_TOKEN=your_github_personal_access_token
 
-# Supabase
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+# Clerk Authentication
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=your_clerk_publishable_key
+CLERK_SECRET_KEY=your_clerk_secret_key
+
+# Supabase Database
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 
-# AI Integration (Optional)
+# AI Integration (Optional - for enhanced summaries)
 OPENAI_API_KEY=your_openai_api_key
 ANTHROPIC_API_KEY=your_anthropic_api_key
 ```
 
-## Features
+### Service Setup Guides
 
-- 🔐 Authentication with Clerk (middleware protection)
-- 🗄️ Supabase Database with third-party auth integration
-- 🤖 AI Chat Interface with OpenAI/Anthropic support
-- 🎨 40+ shadcn/ui components (New York style)
-- 🌙 Dark mode with system preference detection
-- 🎯 Built-in setup dashboard with service status
-- 🚀 App Router with Server Components
-- 🔒 Row Level Security examples with Clerk user IDs
-- 📱 Responsive design with TailwindCSS v4
-- 🎨 Custom fonts (Geist Sans, Geist Mono, Parkinsans)
+#### GitHub API Setup
+1. Go to [GitHub Settings > Developer settings > Personal access tokens](https://github.com/settings/tokens)
+2. Generate a new token with `public_repo` and `read:user` scopes
+3. Copy the token to `GITHUB_TOKEN` in your `.env.local`
 
-## Project Structure
+#### Clerk Authentication Setup
+1. Visit [Clerk Dashboard](https://dashboard.clerk.com/)
+2. Create a new application
+3. Copy the publishable and secret keys from the API Keys section
+4. Configure OAuth providers if desired (GitHub, Google, etc.)
+
+#### Supabase Database Setup
+1. Create a new project at [Supabase Dashboard](https://supabase.com/dashboard)
+2. Go to Settings > API to get your project URL and anon key
+3. Follow the [database migration guide](./SUPABASE_SETUP.md) for schema setup
+
+## 🏗️ Project Structure
 
 ```
-codeguide-starter-kit-lite-v2/
+git-search/
 ├── src/
-│   ├── app/                    # Next.js app router pages
-│   │   ├── api/chat/          # AI chat API endpoint
-│   │   ├── globals.css        # Global styles with dark mode
-│   │   ├── layout.tsx         # Root layout with providers
-│   │   └── page.tsx           # Hero + setup dashboard
-│   ├── components/            # React components
-│   │   ├── ui/                # shadcn/ui components (40+)
-│   │   ├── chat.tsx           # AI chat interface
-│   │   ├── theme-provider.tsx # Theme context
-│   │   └── theme-toggle.tsx   # Dark mode toggle
-│   ├── lib/                   # Utility functions
-│   │   ├── supabase.ts        # Supabase client with Clerk auth
-│   │   ├── user.ts            # User utilities
-│   │   ├── utils.ts           # General utilities
-│   │   └── env-check.ts       # Environment validation
-│   └── middleware.ts          # Clerk route protection
+│   ├── app/                    # Next.js App Router
+│   │   ├── api/               # API routes
+│   │   │   ├── search/        # Repository search endpoints
+│   │   │   ├── stats/         # Statistics generation
+│   │   │   ├── ai/            # AI summary endpoints
+│   │   │   └── github/        # GitHub API integration
+│   │   ├── dashboard/         # User dashboard pages
+│   │   ├── search/            # Search interface pages
+│   │   ├── repository/        # Repository detail pages
+│   │   └── profile/           # User profile pages
+│   ├── components/
+│   │   ├── ui/                # shadcn/ui components
+│   │   ├── search/            # Search interface components
+│   │   ├── repository/        # Repository display components
+│   │   ├── analytics/         # Statistics and charts
+│   │   └── ai/                # AI summary components
+│   ├── lib/
+│   │   ├── github.ts          # GitHub API client
+│   │   ├── ai.ts              # AI integration utilities
+│   │   ├── analytics.ts       # Repository analytics
+│   │   ├── search.ts          # Search algorithms
+│   │   └── supabase.ts        # Database client
+│   └── types/
+│       ├── github.ts          # GitHub API types
+│       ├── repository.ts      # Repository data types
+│       └── analytics.ts       # Analytics types
 ├── supabase/
-│   └── migrations/            # Database migrations with RLS examples
-├── CLAUDE.md                  # AI coding agent documentation
-├── SUPABASE_CLERK_SETUP.md   # Integration setup guide
-└── components.json            # shadcn/ui configuration
+│   └── migrations/            # Database schema migrations
+├── docs/                      # Additional documentation
+└── scripts/                   # Utility scripts
 ```
 
-## Database Integration
+## 🎯 Usage
 
-This starter includes modern Clerk + Supabase integration:
+### Basic Repository Search
+1. Use the search bar to find repositories by name, description, or topics
+2. Apply filters for language, stars, activity level, and more
+3. View AI-generated summaries and comprehensive statistics
+4. Save interesting repositories to your personal collections
 
-- **Third-party auth** (not deprecated JWT templates)
-- **Row Level Security** policies using `auth.jwt() ->> 'sub'` for Clerk user IDs
-- **Example migrations** with various RLS patterns (user-owned, public/private, collaboration)
-- **Server-side client** with automatic Clerk token handling
+### Advanced Features
+- **Semantic Search**: Use natural language queries like "machine learning for beginners"
+- **Trend Analysis**: Discover trending repositories in specific technologies
+- **Health Scoring**: Evaluate repository quality and maintenance status
+- **Comparison Mode**: Compare multiple repositories side-by-side
+- **Personal Dashboard**: Track your searches, bookmarks, and insights
 
-## AI Coding Agent Integration
+### API Endpoints
 
-This starter is optimized for AI coding agents:
+The application provides RESTful APIs for programmatic access:
 
-- **`CLAUDE.md`** - Comprehensive project context and patterns
-- **Setup guides** with detailed integration steps
-- **Example migrations** with RLS policy templates
-- **Clear file structure** and naming conventions
-- **TypeScript integration** with proper type definitions
+- `GET /api/search` - Repository search with filters
+- `GET /api/repository/:owner/:name` - Repository details and analytics
+- `GET /api/stats/:owner/:name` - Repository statistics
+- `POST /api/ai/summarize` - Generate AI repository summary
+- `GET /api/trending` - Trending repositories
 
-## Documentation Setup
+See [API Documentation](./docs/api.md) for detailed endpoint specifications.
 
-To implement the generated documentation from CodeGuide:
+## 🧪 Testing
 
-1. Create a `documentation` folder in the root directory:
-   ```bash
-   mkdir documentation
-   ```
+```bash
+# Run all tests
+npm test
 
-2. Place all generated markdown files from CodeGuide in this directory:
-   ```bash
-   # Example structure
-   documentation/
-   ├── project_requirements_document.md             
-   ├── app_flow_document.md
-   ├── frontend_guideline_document.md
-   └── backend_structure_document.md
-   ```
+# Run tests in watch mode
+npm run test:watch
 
-3. These documentation files will be automatically tracked by git and can be used as a reference for your project's features and implementation details.
+# Run tests with coverage
+npm run test:coverage
 
-## Contributing
+# Run end-to-end tests
+npm run test:e2e
+```
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+## 🚀 Deployment
+
+### Vercel (Recommended)
+1. Connect your GitHub repository to [Vercel](https://vercel.com)
+2. Configure environment variables in the Vercel dashboard
+3. Deploy automatically on every push to main branch
+
+### Docker
+```bash
+# Build Docker image
+docker build -t git-search .
+
+# Run container
+docker run -p 3000:3000 --env-file .env.local git-search
+```
+
+### Manual Deployment
+```bash
+# Build the application
+npm run build
+
+# Start production server
+npm start
+```
+
+## 🤝 Contributing
+
+We welcome contributions! Please see our [Contributing Guide](./CONTRIBUTING.md) for details on:
+
+- Development setup and guidelines
+- Code style and standards  
+- Testing requirements
+- Submitting pull requests
+- Reporting issues
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](./LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- [GitHub API](https://docs.github.com/en/rest) for repository data
+- [Vercel AI SDK](https://sdk.vercel.ai/) for AI integration
+- [shadcn/ui](https://ui.shadcn.com/) for beautiful UI components
+- [Supabase](https://supabase.com/) for database and authentication
+- [Next.js](https://nextjs.org/) for the incredible framework
+
+## 📞 Support
+
+- 📧 **Email**: [support@git-search.dev](mailto:support@git-search.dev)
+- 🐛 **Issues**: [GitHub Issues](https://github.com/RafiulM/git-search/issues)
+- 💬 **Discussions**: [GitHub Discussions](https://github.com/RafiulM/git-search/discussions)
+- 📖 **Documentation**: [Full Documentation](./docs/)
+
+---
+
+**Star ⭐ this repository if you find it helpful!**
