@@ -2,13 +2,10 @@
 
 import { SignInButton, SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
 import Chat from "@/components/chat";
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { checkEnvironmentVariables } from "@/lib/env-check";
 import {
-  Copy,
   CheckCircle,
-  AlertCircle,
   Zap,
   Database,
   Shield,
