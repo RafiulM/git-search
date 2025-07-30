@@ -10,44 +10,44 @@ export async function GET() {
       .from('repositories')
       .select('*', { count: 'exact', head: true });
 
-    // Get analyzed repositories count
+    // Get analyzed repositories count using repository_analysis table
     const { count: totalAnalyzed } = await supabase
-      .from('repositories')
-      .select('*', { count: 'exact', head: true })
-      .not('last_analyzed_at', 'is', null);
+      .from('repository_analysis')
+      .select('*', { count: 'exact', head: true });
 
-    // Get aggregate statistics
+    // Get aggregate statistics from repository_analysis table
     const { data: statsData } = await supabase
-      .from('repository_statistics')
+      .from('repository_analysis')
       .select(`
         total_lines,
-        file_count,
-        complexity_score,
-        repository_id,
-        repositories!inner(language)
+        files_processed,
+        repository_id
       `);
 
     let totalLines = 0;
     let totalFiles = 0;
-    let totalComplexity = 0;
     const languageCounts: Record<string, number> = {};
 
     if (statsData) {
       statsData.forEach(stat => {
         totalLines += stat.total_lines || 0;
-        totalFiles += stat.file_count || 0;
-        totalComplexity += stat.complexity_score || 0;
-        
-        const language = (stat.repositories as { language?: string })?.language;
-        if (language) {
-          languageCounts[language] = (languageCounts[language] || 0) + 1;
-        }
+        totalFiles += stat.files_processed || 0;
       });
     }
 
-    const averageComplexity = statsData && statsData.length > 0 
-      ? totalComplexity / statsData.length 
-      : 0;
+    // Get language distribution from repositories
+    const { data: repositories } = await supabase
+      .from('repositories')
+      .select('author');
+
+    if (repositories) {
+      repositories.forEach(repo => {
+        const language = repo.author || 'Unknown'; // Using author as proxy since language field doesn't exist
+        languageCounts[language] = (languageCounts[language] || 0) + 1;
+      });
+    }
+
+    const averageComplexity = 0; // Not available in current schema
 
     // Calculate language percentages
     const totalReposWithLanguage = Object.values(languageCounts).reduce((sum, count) => sum + count, 0);
@@ -64,22 +64,20 @@ export async function GET() {
     const { data: recentAnalyses } = await supabase
       .from('repositories')
       .select(`
-        full_name,
-        stars_count,
-        language,
-        last_analyzed_at
+        name,
+        author,
+        updated_at
       `)
-      .not('last_analyzed_at', 'is', null)
-      .order('last_analyzed_at', { ascending: false })
+      .order('updated_at', { ascending: false })
       .limit(10);
 
     const formattedRecentAnalyses = recentAnalyses?.map(repo => ({
       repository: {
-        full_name: repo.full_name,
-        stars_count: repo.stars_count,
-        language: repo.language,
+        full_name: repo.name,
+        stars_count: 0, // Not available in current schema
+        language: repo.author || 'Unknown',
       },
-      analyzed_at: repo.last_analyzed_at,
+      analyzed_at: repo.updated_at,
     })) || [];
 
     const dashboardStats = {

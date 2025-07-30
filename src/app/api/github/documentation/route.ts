@@ -685,19 +685,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const [owner, repo] = repository.full_name.split('/');
+    const [owner, repo] = repository.name.split('/');
     const { title, content, mermaidDiagram } = await generateDocumentation(owner, repo, doc_type);
 
     // Save documentation to database
     const { data: documentation } = await supabase
-      .from('repository_documentation')
+      .from('documents')
       .insert({
         repository_id,
-        doc_type,
+        document_type: doc_type,
         title,
         content,
-        mermaid_diagram: mermaidDiagram,
         generated_by: 'system',
+        is_current: true,
+        version: 1,
       })
       .select()
       .single();

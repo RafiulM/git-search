@@ -21,110 +21,13 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
-
-// Dummy repository data with AI-focused statistics
-const dummyRepositories = [
-  {
-    id: 1,
-    name: "facebook/react",
-    description: "The library for web and native user interfaces",
-    language: "JavaScript",
-    stars: 227000,
-    forks: 46000,
-    watchers: 6800,
-    lastUpdated: "2024-01-15",
-    stats: {
-      linesOfCode: 125000,
-      characters: 4200000,
-      files: 1250,
-      storageSize: "15.2 MB",
-      tokenEstimates: {
-        gpt4: 1200000,
-        claude: 933000,
-        gemini: 1050000
-      },
-      complexity: 7.2,
-      maintainability: 82.5
-    },
-    topics: ["javascript", "react", "frontend", "library", "components"]
-  },
-  {
-    id: 2,
-    name: "microsoft/vscode",
-    description: "Visual Studio Code - Open Source Build",
-    language: "TypeScript",
-    stars: 163000,
-    forks: 28000,
-    watchers: 3500,
-    lastUpdated: "2024-01-14",
-    stats: {
-      linesOfCode: 890000,
-      characters: 28500000,
-      files: 8500,
-      storageSize: "145.8 MB",
-      tokenEstimates: {
-        gpt4: 8140000,
-        claude: 6333000,
-        gemini: 7125000
-      },
-      complexity: 8.9,
-      maintainability: 75.3
-    },
-    topics: ["typescript", "editor", "electron", "ide", "code-editor"]
-  },
-  {
-    id: 3,
-    name: "vercel/next.js",
-    description: "The React Framework for the Web",
-    language: "JavaScript",
-    stars: 125000,
-    forks: 26000,
-    watchers: 1800,
-    lastUpdated: "2024-01-16",
-    stats: {
-      linesOfCode: 320000,
-      characters: 12800000,
-      files: 3200,
-      storageSize: "52.4 MB",
-      tokenEstimates: {
-        gpt4: 3657000,
-        claude: 2844000,
-        gemini: 3200000
-      },
-      complexity: 6.8,
-      maintainability: 85.7
-    },
-    topics: ["nextjs", "react", "framework", "fullstack", "ssr"]
-  },
-  {
-    id: 4,
-    name: "pytorch/pytorch",
-    description: "Tensors and Dynamic neural networks in Python",
-    language: "Python",
-    stars: 82000,
-    forks: 22000,
-    watchers: 2100,
-    lastUpdated: "2024-01-13",
-    stats: {
-      linesOfCode: 1500000,
-      characters: 52000000,
-      files: 12000,
-      storageSize: "380.5 MB",
-      tokenEstimates: {
-        gpt4: 14857000,
-        claude: 11555000,
-        gemini: 13000000
-      },
-      complexity: 9.1,
-      maintainability: 68.2
-    },
-    topics: ["python", "pytorch", "machine-learning", "deep-learning", "ai"]
-  }
-];
+import { Skeleton } from "@/components/ui/skeleton";
+import { useFeaturedRepositories } from "@/hooks/use-featured-repositories";
 
 export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const router = useRouter();
+  const { data: featuredRepositories, isLoading, error } = useFeaturedRepositories(4);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -149,6 +52,14 @@ export default function Home() {
       month: 'short',
       day: 'numeric',
     });
+  };
+
+  const formatBytes = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
   return (
@@ -203,10 +114,43 @@ export default function Home() {
           </div>
           
           <div className="space-y-4">
-            {dummyRepositories.map((repo) => (
-              <Card key={repo.id} className="hover:shadow-lg transition-shadow">
-                <CardContent>
-                                      <div className="flex-1">
+            {isLoading ? (
+              // Loading skeletons
+              Array.from({ length: 4 }).map((_, index) => (
+                <Card key={index} className="hover:shadow-lg transition-shadow">
+                  <CardContent className="p-4">
+                    <div className="space-y-3">
+                      <Skeleton className="h-6 w-2/3" />
+                      <Skeleton className="h-4 w-full" />
+                      <div className="flex gap-2">
+                        <Skeleton className="h-5 w-16" />
+                        <Skeleton className="h-5 w-16" />
+                        <Skeleton className="h-5 w-16" />
+                      </div>
+                      <div className="grid grid-cols-4 gap-3 p-3">
+                        {Array.from({ length: 4 }).map((_, i) => (
+                          <Skeleton key={i} className="h-12 w-full" />
+                        ))}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            ) : error ? (
+              // Error state
+              <Card>
+                <CardContent className="text-center py-8">
+                  <p className="text-muted-foreground">
+                    Unable to load featured repositories. Please try again later.
+                  </p>
+                </CardContent>
+              </Card>
+            ) : featuredRepositories && featuredRepositories.length > 0 ? (
+              // Real data
+              featuredRepositories.map((repo) => (
+                <Card key={repo.id} className="hover:shadow-lg transition-shadow">
+                  <CardContent className="p-4">
+                    <div className="flex-1">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
                         <div className="flex items-center gap-2">
                           <Link 
@@ -216,7 +160,7 @@ export default function Home() {
                             {repo.name}
                           </Link>
                           <a
-                            href={`https://github.com/${repo.name}`}
+                            href={repo.repo_url}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-gray-400 hover:text-gray-600"
@@ -228,54 +172,43 @@ export default function Home() {
                         <div className="flex items-center gap-3">
                           <div className="flex items-center gap-3 text-sm text-muted-foreground">
                             <div className="flex items-center gap-1">
-                              <Star className="w-3 h-3" />
-                              {formatNumber(repo.stars)}
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <GitFork className="w-3 h-3" />
-                              {formatNumber(repo.forks)}
-                            </div>
-                            <div className="flex items-center gap-1">
                               <Calendar className="w-3 h-3" />
-                              {formatDate(repo.lastUpdated)}
+                              {formatDate(repo.updated_at)}
                             </div>
                           </div>
                           <Link href={`/repository/${repo.name.replace('/', '-')}`}>
                             <Button variant="outline" size="sm">
                               <BarChart3 className="w-4 h-4 mr-1" />
-                              Analyze
+                              View Analysis
                             </Button>
                           </Link>
                         </div>
                       </div>
                     
-                    <p className="text-muted-foreground text-sm mb-2 line-clamp-2">
-                      {repo.description}
-                    </p>
+                      <p className="text-muted-foreground text-sm mb-2 line-clamp-2">
+                        {repo.description || 'No description available'}
+                      </p>
 
-                    <div className="flex flex-wrap gap-1 mb-3">
-                      <Badge variant="secondary" className="text-xs">
-                        {repo.language}
-                      </Badge>
-                      {repo.topics.slice(0, 2).map((topic) => (
-                        <Badge key={topic} variant="outline" className="text-xs">
-                          {topic}
-                        </Badge>
-                      ))}
-                      {repo.topics.length > 2 && (
-                        <Badge variant="outline" className="text-xs">
-                          +{repo.topics.length - 2}
-                        </Badge>
-                      )}
-                    </div>
+                      <div className="flex flex-wrap gap-1 mb-3">
+                        {repo.author && (
+                          <Badge variant="secondary" className="text-xs">
+                            {repo.author}
+                          </Badge>
+                        )}
+                        {repo.branch && (
+                          <Badge variant="outline" className="text-xs">
+                            {repo.branch}
+                          </Badge>
+                        )}
+                      </div>
 
-                                          {/* Statistics with Icons */}
+                      {/* Statistics with Icons */}
                       <div className="grid grid-cols-4 gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded">
                         <div className="flex items-center gap-2">
                           <FileText className="w-4 h-4 text-blue-600" />
                           <div>
                             <div className="text-sm font-semibold text-slate-600">
-                              {formatNumber(repo.stats.linesOfCode)}
+                              {formatNumber(repo.stats?.total_lines || 0)}
                             </div>
                             <div className="text-xs text-muted-foreground">Lines</div>
                           </div>
@@ -284,7 +217,7 @@ export default function Home() {
                           <Database className="w-4 h-4 text-blue-600" />
                           <div>
                             <div className="text-sm font-semibold text-slate-600">
-                              {repo.stats.files}
+                              {formatNumber(repo.stats?.total_files_found || 0)}
                             </div>
                             <div className="text-xs text-muted-foreground">Files</div>
                           </div>
@@ -293,7 +226,7 @@ export default function Home() {
                           <BarChart3 className="w-4 h-4 text-blue-600" />
                           <div>
                             <div className="text-sm font-semibold text-slate-600">
-                              {repo.stats.storageSize}
+                              {formatBytes(repo.stats?.estimated_size_bytes || 0)}
                             </div>
                             <div className="text-xs text-muted-foreground">Size</div>
                           </div>
@@ -302,16 +235,26 @@ export default function Home() {
                           <Zap className="w-4 h-4 text-blue-600" />
                           <div>
                             <div className="text-sm font-semibold text-slate-600">
-                              {formatNumber(repo.stats.tokenEstimates.gpt4)}
+                              {formatNumber(repo.stats?.estimated_tokens || 0)}
                             </div>
                             <div className="text-xs text-muted-foreground">Tokens</div>
                           </div>
                         </div>
                       </div>
-                  </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            ) : (
+              // No data state
+              <Card>
+                <CardContent className="text-center py-8">
+                  <p className="text-muted-foreground">
+                    No featured repositories available. Start by analyzing some repositories!
+                  </p>
                 </CardContent>
               </Card>
-            ))}
+            )}
           </div>
 
           <div className="text-center mt-8">

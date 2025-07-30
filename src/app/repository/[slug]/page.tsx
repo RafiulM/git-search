@@ -26,6 +26,9 @@ import { ThemeToggle } from '@/components/theme-toggle';
 // Authentication removed
 import MermaidDiagram from '@/components/mermaid-diagram';
 import Link from 'next/link';
+import { useRepositoryDetails } from '@/hooks/use-repository-details';
+import { useRepositoryAnalysis } from '@/hooks/use-repository-analysis';
+import { useRepositoryDocumentation } from '@/hooks/use-repository-documentation';
 
 interface Repository {
   id: string;

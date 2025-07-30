@@ -1,6 +1,5 @@
 "use client";
 
-import { useState, useEffect } from 'react';
 import { BarChart3, TrendingUp, Code, Database, Star, Activity, Calendar } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -9,45 +8,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ThemeToggle } from '@/components/theme-toggle';
 // Authentication removed
 import Link from 'next/link';
-
-interface DashboardStats {
-  totalRepositories: number;
-  totalAnalyzed: number;
-  totalLines: number;
-  totalFiles: number;
-  averageComplexity: number;
-  topLanguages: Array<{ language: string; count: number; percentage: number }>;
-  recentAnalyses: Array<{
-    repository: {
-      full_name: string;
-      stars_count: number;
-      language: string;
-    };
-    analyzed_at: string;
-  }>;
-}
+import { useDashboardStats } from '@/hooks/use-dashboard-stats';
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchDashboardStats();
-  }, []);
-
-  const fetchDashboardStats = async () => {
-    try {
-      const response = await fetch('/api/dashboard/stats');
-      if (response.ok) {
-        const data = await response.json();
-        setStats(data);
-      }
-    } catch (error) {
-      console.error('Error fetching dashboard stats:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { data: stats, isLoading: loading, error } = useDashboardStats();
 
   const formatNumber = (num: number) => {
     if (num >= 1000000) {

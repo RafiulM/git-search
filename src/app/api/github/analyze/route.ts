@@ -228,7 +228,7 @@ export async function POST(request: NextRequest) {
     const { data: repoData } = await supabase
       .from('repositories')
       .select('*')
-      .eq('github_id', githubRepo.id)
+      .eq('repo_url', githubRepo.html_url)
       .single();
 
     if (repoData) {
@@ -237,94 +237,55 @@ export async function POST(request: NextRequest) {
       const { data: newRepo } = await supabase
         .from('repositories')
         .insert({
-          github_id: githubRepo.id,
-          full_name: githubRepo.full_name,
-          name: githubRepo.name,
-          owner_login: githubRepo.owner.login,
-          description: githubRepo.description,
-          html_url: githubRepo.html_url,
-          clone_url: githubRepo.clone_url,
-          ssh_url: githubRepo.ssh_url,
-          default_branch: githubRepo.default_branch,
-          language: githubRepo.language,
-          topics: githubRepo.topics || [],
-          stars_count: githubRepo.stargazers_count,
-          forks_count: githubRepo.forks_count,
-          watchers_count: githubRepo.watchers_count,
-          open_issues_count: githubRepo.open_issues_count,
-          size_kb: githubRepo.size,
-          github_created_at: githubRepo.created_at,
-          github_updated_at: githubRepo.updated_at,
-          is_private: githubRepo.private,
-          is_fork: githubRepo.fork,
-          is_archived: githubRepo.archived,
-          license_name: githubRepo.license?.name,
-          has_wiki: githubRepo.has_wiki,
-          has_pages: githubRepo.has_pages,
-          has_downloads: githubRepo.has_downloads,
-          has_issues: githubRepo.has_issues,
-          has_projects: githubRepo.has_projects,
+          name: githubRepo.full_name,
+          repo_url: githubRepo.html_url,
+          author: githubRepo.owner.login,
+          branch: githubRepo.default_branch,
         })
         .select()
         .single();
       
+      if (!newRepo) {
+        throw new Error('Failed to create repository');
+      }
       existingRepo = newRepo;
     }
 
-    const { data: analysisJob } = await supabase
-      .from('analysis_jobs')
-      .insert({
-        repository_id: existingRepo.id,
-        job_type: 'full_analysis',
-        status: 'running',
-      })
-      .select()
-      .single();
+    if (!existingRepo) {
+      throw new Error('Repository not found or created');
+    }
 
     try {
       const { statistics, files } = await analyzeRepository(owner, repo);
 
+      // Delete existing analysis data
       await supabase
-        .from('repository_statistics')
-        .upsert({
-          repository_id: existingRepo.id,
-          ...statistics,
-        });
-
-      await supabase
-        .from('repository_files')
+        .from('repository_analysis')
         .delete()
         .eq('repository_id', existingRepo.id);
 
-      if (files.length > 0) {
-        await supabase
-          .from('repository_files')
-          .insert(
-            files.map(file => ({
-              repository_id: existingRepo.id,
-              file_path: file.path,
-              file_name: file.name,
-              file_extension: file.extension,
-              file_size_bytes: file.size || 0,
-              language: getLanguageFromExtension(file.extension),
-              is_binary: file.name.match(/\.(jpg|jpeg|png|gif|pdf|zip|tar|gz|exe|dll|so)$/i) !== null,
-            }))
-          );
-      }
+      // Insert new analysis data
+      await supabase
+        .from('repository_analysis')
+        .insert({
+          repository_id: existingRepo.id,
+          analysis_version: 1,
+          total_lines: statistics.total_lines,
+          total_characters: statistics.total_characters,
+          files_processed: statistics.file_count,
+          total_files_found: statistics.file_count,
+          total_directories: statistics.directory_count,
+          estimated_size_bytes: statistics.storage_size_bytes,
+          estimated_tokens: statistics.estimated_tokens_gpt4,
+          tree_structure: JSON.stringify(files.map((f: { path: string }) => f.path)),
+          analysis_data: statistics,
+        });
 
+      // Update repository with last analyzed timestamp
       await supabase
         .from('repositories')
-        .update({ last_analyzed_at: new Date().toISOString() })
+        .update({ updated_at: new Date().toISOString() })
         .eq('id', existingRepo.id);
-
-      await supabase
-        .from('analysis_jobs')
-        .update({
-          status: 'completed',
-          progress: 100,
-          completed_at: new Date().toISOString(),
-        })
-        .eq('id', analysisJob.id);
 
       return NextResponse.json({
         success: true,
@@ -334,15 +295,7 @@ export async function POST(request: NextRequest) {
       });
 
     } catch (analysisError) {
-      await supabase
-        .from('analysis_jobs')
-        .update({
-          status: 'failed',
-          error_message: (analysisError as Error).message,
-          completed_at: new Date().toISOString(),
-        })
-        .eq('id', analysisJob.id);
-
+      console.error('Analysis error:', analysisError);
       throw analysisError;
     }
 
