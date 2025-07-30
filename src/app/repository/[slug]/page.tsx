@@ -24,7 +24,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { SignInButton, SignedIn, SignedOut, UserButton } from '@clerk/nextjs';
+// Authentication removed
 import MermaidDiagram from '@/components/mermaid-diagram';
 import Link from 'next/link';
 
@@ -314,14 +314,6 @@ export default function RepositoryPage() {
             
             <div className="flex items-center gap-4">
               <ThemeToggle />
-              <SignedOut>
-                <SignInButton>
-                  <Button size="sm">Sign In</Button>
-                </SignInButton>
-              </SignedOut>
-              <SignedIn>
-                <UserButton />
-              </SignedIn>
             </div>
           </div>
         </div>
@@ -339,17 +331,6 @@ export default function RepositoryPage() {
             </div>
             
             <div className="flex items-center gap-2">
-              <SignedIn>
-                <Button 
-                  variant={isFavorite ? "default" : "outline"} 
-                  size="sm"
-                  onClick={toggleFavorite}
-                >
-                  <Heart className={`w-4 h-4 mr-1 ${isFavorite ? 'fill-current' : ''}`} />
-                  {isFavorite ? 'Favorited' : 'Add to Favorites'}
-                </Button>
-              </SignedIn>
-              
               <a href={repository.html_url} target="_blank" rel="noopener noreferrer">
                 <Button variant="outline" size="sm">
                   <ExternalLink className="w-4 h-4 mr-1" />

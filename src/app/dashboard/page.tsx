@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { SignedIn, UserButton } from '@clerk/nextjs';
+// Authentication removed
 import Link from 'next/link';
 
 interface DashboardStats {
@@ -119,9 +119,6 @@ export default function DashboardPage() {
                 Favorites
               </Link>
               <ThemeToggle />
-              <SignedIn>
-                <UserButton />
-              </SignedIn>
             </div>
           </div>
         </div>

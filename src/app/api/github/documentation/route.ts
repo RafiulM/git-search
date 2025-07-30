@@ -57,32 +57,65 @@ async function generateDocumentation(owner: string, repo: string, docType: strin
     switch (docType) {
       case 'summary':
         title = 'Repository Summary';
-        content = generateSummary(repoData, readmeContent);
+        content = generateSummary({
+          full_name: repoData.full_name,
+          description: repoData.description || undefined,
+          language: repoData.language || undefined,
+          stargazers_count: repoData.stargazers_count,
+          forks_count: repoData.forks_count,
+          open_issues_count: repoData.open_issues_count,
+          license: repoData.license ? { name: repoData.license.name } : undefined,
+          created_at: repoData.created_at,
+          updated_at: repoData.updated_at,
+          topics: repoData.topics || undefined,
+          has_wiki: repoData.has_wiki,
+          has_pages: repoData.has_pages,
+          has_issues: repoData.has_issues,
+          has_projects: repoData.has_projects,
+          archived: repoData.archived,
+          fork: repoData.fork,
+        }, readmeContent);
         break;
       
       case 'tech_stack':
         title = 'Technology Stack';
-        content = generateTechStackDoc(repoData, techStack);
+        content = generateTechStackDoc({
+          language: repoData.language || undefined,
+        }, techStack);
         break;
       
       case 'requirements':
         title = 'Project Requirements';
-        content = generateRequirementsDoc(repoData, readmeContent);
+        content = generateRequirementsDoc({
+          full_name: repoData.full_name,
+          description: repoData.description || undefined,
+          language: repoData.language || undefined,
+          license: repoData.license ? { name: repoData.license.name } : undefined,
+        }, readmeContent);
         break;
       
       case 'frontend_guidelines':
         title = 'Frontend Development Guidelines';
-        content = generateFrontendGuidelines(repoData, techStack);
+        content = generateFrontendGuidelines({
+          full_name: repoData.full_name,
+          language: repoData.language || undefined,
+        }, techStack);
         break;
       
       case 'backend_structure':
         title = 'Backend Architecture';
-        content = generateBackendStructure(repoData, techStack);
+        content = generateBackendStructure({
+          full_name: repoData.full_name,
+          language: repoData.language || undefined,
+        }, techStack);
         break;
       
       case 'app_flow':
         title = 'Application Flow';
-        content = generateAppFlow(repoData);
+        content = generateAppFlow({
+          full_name: repoData.full_name,
+          description: repoData.description || undefined,
+        });
         break;
       
       case 'flowchart':

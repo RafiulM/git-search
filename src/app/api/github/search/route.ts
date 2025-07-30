@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
 
     const response = await octokit.rest.search.repos({
       q: query,
-      sort: sort as 'stars' | 'forks' | 'updated' | 'created',
+      sort: sort === 'created' ? 'updated' : sort as 'stars' | 'forks' | 'updated',
       order: order as 'asc' | 'desc',
       page,
       per_page,
@@ -61,6 +61,7 @@ export async function GET(request: NextRequest) {
 
     await supabase.from('search_queries').insert({
       query,
+      user_id: null, // No user tracking without authentication
       filters: { sort, order, page, per_page },
       results_count: response.data.total_count,
     });

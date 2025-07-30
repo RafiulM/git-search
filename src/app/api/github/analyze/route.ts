@@ -282,7 +282,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     try {
-      const { statistics, files } = await analyzeRepository(owner, repo, githubRepo);
+      const { statistics, files } = await analyzeRepository(owner, repo);
 
       await supabase
         .from('repository_statistics')

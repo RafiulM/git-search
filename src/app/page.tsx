@@ -1,31 +1,130 @@
 "use client";
 
-import { SignInButton, SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
+// Authentication removed
 import { useState } from "react";
 import Chat from "@/components/chat";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { checkEnvironmentVariables } from "@/lib/env-check";
 import {
-  CheckCircle,
-  AlertCircle,
-  Zap,
-  Database,
-  Shield,
-  ExternalLink,
   Search,
   GitBranch,
   BarChart3,
   FileText,
-  Heart,
+  Zap,
+  Database,
+  Star,
+  GitFork,
+  Eye,
+  Calendar,
+  ExternalLink,
+  TrendingUp,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+// Dummy repository data with AI-focused statistics
+const dummyRepositories = [
+  {
+    id: 1,
+    name: "facebook/react",
+    description: "The library for web and native user interfaces",
+    language: "JavaScript",
+    stars: 227000,
+    forks: 46000,
+    watchers: 6800,
+    lastUpdated: "2024-01-15",
+    stats: {
+      linesOfCode: 125000,
+      characters: 4200000,
+      files: 1250,
+      storageSize: "15.2 MB",
+      tokenEstimates: {
+        gpt4: 1200000,
+        claude: 933000,
+        gemini: 1050000
+      },
+      complexity: 7.2,
+      maintainability: 82.5
+    },
+    topics: ["javascript", "react", "frontend", "library", "components"]
+  },
+  {
+    id: 2,
+    name: "microsoft/vscode",
+    description: "Visual Studio Code - Open Source Build",
+    language: "TypeScript",
+    stars: 163000,
+    forks: 28000,
+    watchers: 3500,
+    lastUpdated: "2024-01-14",
+    stats: {
+      linesOfCode: 890000,
+      characters: 28500000,
+      files: 8500,
+      storageSize: "145.8 MB",
+      tokenEstimates: {
+        gpt4: 8140000,
+        claude: 6333000,
+        gemini: 7125000
+      },
+      complexity: 8.9,
+      maintainability: 75.3
+    },
+    topics: ["typescript", "editor", "electron", "ide", "code-editor"]
+  },
+  {
+    id: 3,
+    name: "vercel/next.js",
+    description: "The React Framework for the Web",
+    language: "JavaScript",
+    stars: 125000,
+    forks: 26000,
+    watchers: 1800,
+    lastUpdated: "2024-01-16",
+    stats: {
+      linesOfCode: 320000,
+      characters: 12800000,
+      files: 3200,
+      storageSize: "52.4 MB",
+      tokenEstimates: {
+        gpt4: 3657000,
+        claude: 2844000,
+        gemini: 3200000
+      },
+      complexity: 6.8,
+      maintainability: 85.7
+    },
+    topics: ["nextjs", "react", "framework", "fullstack", "ssr"]
+  },
+  {
+    id: 4,
+    name: "pytorch/pytorch",
+    description: "Tensors and Dynamic neural networks in Python",
+    language: "Python",
+    stars: 82000,
+    forks: 22000,
+    watchers: 2100,
+    lastUpdated: "2024-01-13",
+    stats: {
+      linesOfCode: 1500000,
+      characters: 52000000,
+      files: 12000,
+      storageSize: "380.5 MB",
+      tokenEstimates: {
+        gpt4: 14857000,
+        claude: 11555000,
+        gemini: 13000000
+      },
+      complexity: 9.1,
+      maintainability: 68.2
+    },
+    topics: ["python", "pytorch", "machine-learning", "deep-learning", "ai"]
+  }
+];
+
 export default function Home() {
-  const envStatus = checkEnvironmentVariables();
   const [searchQuery, setSearchQuery] = useState('');
   const router = useRouter();
 
@@ -36,6 +135,24 @@ export default function Home() {
     }
   };
 
+  const formatNumber = (num: number) => {
+    if (num >= 1000000) {
+      return (num / 1000000).toFixed(1) + 'M';
+    }
+    if (num >= 1000) {
+      return (num / 1000).toFixed(1) + 'k';
+    }
+    return num.toString();
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-cyan-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
       {/* Hero Section */}
@@ -43,22 +160,6 @@ export default function Home() {
         <div className="absolute top-4 right-4 sm:top-6 sm:right-6">
           <div className="flex items-center gap-2 sm:gap-3">
             <ThemeToggle />
-            <SignedOut>
-              <SignInButton>
-                <Button size="sm" className="text-xs sm:text-sm">
-                  Sign In
-                </Button>
-              </SignInButton>
-            </SignedOut>
-            <SignedIn>
-              <Link href="/favorites">
-                <Button variant="outline" size="sm">
-                  <Heart className="w-4 h-4 mr-1" />
-                  Favorites
-                </Button>
-              </Link>
-              <UserButton />
-            </SignedIn>
           </div>
         </div>
 
@@ -68,8 +169,10 @@ export default function Home() {
             Git Search
           </h1>
         </div>
-        <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto px-4 mb-8">
-          Discover GitHub repositories with AI-powered analysis and insights
+        <p className="text-lg sm:text-xl text-muted-foreground max-w-3xl mx-auto px-4 mb-8">
+          The ultimate GitHub repository directory with AI-focused statistics and comprehensive analysis. 
+          Get insights not available on GitHub - including lines of code, token estimates for AI models, 
+          storage analysis, and auto-generated documentation.
         </p>
 
         {/* Search Bar */}
@@ -156,103 +259,133 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Setup Status for Development */}
-        {(!envStatus.allConfigured) && (
-          <Card className="mb-8">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <AlertCircle className="w-5 h-5 text-yellow-500" />
-                Development Setup
-              </CardTitle>
-              <CardDescription>
-                Complete setup to enable all features
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="text-center p-3 rounded-lg bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/10 dark:to-indigo-900/10">
-                  <div className="flex justify-center mb-2">
-                    {envStatus.clerk ? (
-                      <CheckCircle className="w-6 h-6 text-green-500" />
-                    ) : (
-                      <Shield className="w-6 h-6 text-blue-500" />
-                    )}
-                  </div>
-                  <div className="font-semibold mb-1 text-sm">Clerk Auth</div>
-                  <div className="text-xs text-muted-foreground mb-2">
-                    {envStatus.clerk ? "✓ Ready" : "Setup required"}
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => window.open("https://dashboard.clerk.com", "_blank")}
-                    className="w-full text-xs"
-                  >
-                    <ExternalLink className="w-3 h-3 mr-1" />
-                    Setup
-                  </Button>
-                </div>
+        {/* Featured Repositories */}
+        <div className="mt-16">
+          <div className="text-center mb-8">
+            <h2 className="text-2xl font-bold mb-2">Featured Repositories</h2>
+            <p className="text-muted-foreground">
+              Popular repositories with comprehensive AI-focused analysis
+            </p>
+          </div>
+          
+          <div className="space-y-6">
+            {dummyRepositories.map((repo) => (
+              <Card key={repo.id} className="hover:shadow-lg transition-shadow">
+                <CardContent className="p-6">
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Link 
+                          href={`/repository/${repo.name.replace('/', '-')}`}
+                          className="text-xl font-semibold text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                        >
+                          {repo.name}
+                        </Link>
+                        <a
+                          href={`https://github.com/${repo.name}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-gray-400 hover:text-gray-600"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </a>
+                      </div>
+                      
+                      <p className="text-muted-foreground mb-3">
+                        {repo.description}
+                      </p>
 
-                <div className="text-center p-3 rounded-lg bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/10 dark:to-emerald-900/10">
-                  <div className="flex justify-center mb-2">
-                    {envStatus.supabase ? (
-                      <CheckCircle className="w-6 h-6 text-green-500" />
-                    ) : (
-                      <Database className="w-6 h-6 text-green-500" />
-                    )}
-                  </div>
-                  <div className="font-semibold mb-1 text-sm">Supabase DB</div>
-                  <div className="text-xs text-muted-foreground mb-2">
-                    {envStatus.supabase ? "✓ Ready" : "Setup required"}
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => window.open("https://supabase.com/dashboard", "_blank")}
-                    className="w-full text-xs"
-                  >
-                    <ExternalLink className="w-3 h-3 mr-1" />
-                    Setup
-                  </Button>
-                </div>
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        <span className="bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-2 py-1 rounded text-xs font-medium">
+                          {repo.language}
+                        </span>
+                        {repo.topics.slice(0, 3).map((topic) => (
+                          <span key={topic} className="bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 px-2 py-1 rounded text-xs">
+                            {topic}
+                          </span>
+                        ))}
+                        {repo.topics.length > 3 && (
+                          <span className="bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 px-2 py-1 rounded text-xs">
+                            +{repo.topics.length - 3} more
+                          </span>
+                        )}
+                      </div>
 
-                <div className="text-center p-3 rounded-lg bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/10 dark:to-pink-900/10">
-                  <div className="flex justify-center mb-2">
-                    <Zap className="w-6 h-6 text-purple-500" />
-                  </div>
-                  <div className="font-semibold mb-1 text-sm">GitHub Token</div>
-                  <div className="text-xs text-muted-foreground mb-2">Optional</div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => window.open("https://github.com/settings/tokens", "_blank")}
-                    className="w-full text-xs"
-                  >
-                    <ExternalLink className="w-3 h-3 mr-1" />
-                    Setup
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+                      <div className="flex items-center gap-6 text-sm text-muted-foreground mb-4">
+                        <div className="flex items-center gap-1">
+                          <Star className="w-4 h-4" />
+                          {formatNumber(repo.stars)}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <GitFork className="w-4 h-4" />
+                          {formatNumber(repo.forks)}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Eye className="w-4 h-4" />
+                          {formatNumber(repo.watchers)}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Calendar className="w-4 h-4" />
+                          Updated {formatDate(repo.lastUpdated)}
+                        </div>
+                      </div>
 
-        {/* Chat Section */}
-        <SignedIn>
-          {envStatus.allConfigured && (
-            <Card>
-              <CardHeader>
-                <CardTitle>AI Assistant</CardTitle>
-                <CardDescription>
-                  Chat with Claude about repositories and development
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Chat />
-              </CardContent>
-            </Card>
-          )}
-        </SignedIn>
+                      {/* AI-focused Statistics Preview */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <div className="text-center">
+                          <div className="text-lg font-bold text-blue-600">
+                            {formatNumber(repo.stats.linesOfCode)}
+                          </div>
+                          <div className="text-xs text-muted-foreground">Lines of Code</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-lg font-bold text-green-600">
+                            {repo.stats.files}
+                          </div>
+                          <div className="text-xs text-muted-foreground">Files</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-lg font-bold text-purple-600">
+                            {repo.stats.storageSize}
+                          </div>
+                          <div className="text-xs text-muted-foreground">Storage</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-lg font-bold text-orange-600">
+                            {formatNumber(repo.stats.tokenEstimates.gpt4)}
+                          </div>
+                          <div className="text-xs text-muted-foreground">GPT-4 Tokens</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-2 ml-4">
+                      <Link href={`/repository/${repo.name.replace('/', '-')}`}>
+                        <Button variant="outline" size="sm">
+                          <BarChart3 className="w-4 h-4 mr-1" />
+                          View Analysis
+                        </Button>
+                      </Link>
+                      
+                      <div className="text-xs text-muted-foreground text-center">
+                        Complexity: {repo.stats.complexity}/10
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          <div className="text-center mt-8">
+            <Link href="/search">
+              <Button size="lg">
+                <Search className="w-4 h-4 mr-2" />
+                Explore More Repositories
+              </Button>
+            </Link>
+          </div>
+        </div>
       </main>
     </div>
   );

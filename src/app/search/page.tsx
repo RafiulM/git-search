@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { SignInButton, SignedIn, SignedOut, UserButton } from '@clerk/nextjs';
+// Authentication removed
 import Link from 'next/link';
 
 interface Repository {
@@ -141,20 +141,6 @@ export default function SearchPage() {
             
             <div className="flex items-center gap-4">
               <ThemeToggle />
-              <SignedOut>
-                <SignInButton>
-                  <Button size="sm">Sign In</Button>
-                </SignInButton>
-              </SignedOut>
-              <SignedIn>
-                <Link href="/favorites">
-                  <Button variant="outline" size="sm">
-                    <Heart className="w-4 h-4 mr-1" />
-                    Favorites
-                  </Button>
-                </Link>
-                <UserButton />
-              </SignedIn>
             </div>
           </div>
         </div>
@@ -300,7 +286,7 @@ export default function SearchPage() {
                       </div>
 
                       <div className="flex flex-col gap-2 ml-4">
-                        {repo.analysis?.statistics?.length > 0 ? (
+                        {repo.analysis?.statistics && repo.analysis.statistics.length > 0 ? (
                           <Link href={`/repository/${repo.full_name.replace('/', '-')}`}>
                             <Button variant="outline" size="sm">
                               <BarChart3 className="w-4 h-4 mr-1" />

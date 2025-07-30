@@ -1,10 +1,12 @@
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+// Authentication middleware removed - no route protection
 
-const isProtectedRoute = createRouteMatcher(["/dashboard(.*)", "/profile(.*)"]);
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
 
-export default clerkMiddleware(async (auth, req) => {
-  if (isProtectedRoute(req)) await auth.protect();
-});
+export function middleware(request: NextRequest) {
+  // No authentication required - allow all requests
+  return NextResponse.next();
+}
 
 export const config = {
   matcher: ["/((?!.*\\..*|_next).*)", "/", "/(api|trpc)(.*)"],
