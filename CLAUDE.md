@@ -395,7 +395,73 @@ npm run dev          # Start development server with Turbopack
 npm run build        # Build for production  
 npm run start        # Start production server
 npm run lint         # Run ESLint
+npm run type-check   # Run TypeScript type checking
 ```
+
+## Code Quality & Verification
+
+Before committing changes or deploying, ensure code quality by running these checks:
+
+### Quick Verification (Recommended)
+```bash
+# Run both linting and type checking
+npm run lint && npm run type-check
+```
+
+### Individual Checks
+
+**ESLint (Code Quality & Style):**
+```bash
+npm run lint              # Check for linting errors
+npm run lint -- --fix    # Auto-fix linting issues where possible
+```
+
+**TypeScript Type Checking:**
+```bash
+npm run type-check        # Verify TypeScript types without emitting files
+```
+
+**Production Build (Full Verification):**
+```bash
+npm run build            # Builds project and performs comprehensive type checking
+```
+
+### Pre-Deployment Checklist
+
+Run this complete verification before deploying:
+
+```bash
+# 1. Check code style and quality
+npm run lint
+
+# 2. Verify TypeScript types
+npm run type-check
+
+# 3. Ensure production build works
+npm run build
+
+# If all pass, your code is ready for deployment
+```
+
+### IDE Integration
+
+For the best development experience, ensure your editor has:
+- **ESLint extension** for real-time linting
+- **TypeScript support** for type checking
+- **TailwindCSS IntelliSense** for styling
+
+### Common Issues & Fixes
+
+**Linting Errors:**
+- Use `npm run lint -- --fix` to auto-fix formatting issues
+- Check for unused imports, variables, or incorrect patterns
+- Ensure consistent coding style
+
+**Type Errors:**
+- Verify all imports have correct types
+- Check for missing type definitions
+- Ensure component props match their interfaces
+- Use proper typing for Clerk user objects and Supabase responses
 
 ## Best Practices
 
