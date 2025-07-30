@@ -36,22 +36,25 @@ export async function GET(request: NextRequest) {
       response.data.items.map(async (repo) => {
         const { data: existingRepo } = await supabase
           .from('repositories')
-          .select(`
-            *,
-            repository_statistics(*),
-            repository_documentation(*)
-          `)
-          .eq('github_id', repo.id)
+          .select('*')
+          .eq('repo_url', `https://github.com/${repo.full_name}`)
           .single();
 
         if (existingRepo) {
+          // Check if there's analysis data
+          const { data: analysisData } = await supabase
+            .from('repository_analysis')
+            .select('*')
+            .eq('repository_id', existingRepo.id)
+            .single();
+
           return {
             ...repo,
-            analysis: {
-              statistics: existingRepo.repository_statistics,
-              documentation: existingRepo.repository_documentation,
-              last_analyzed: existingRepo.last_analyzed_at,
-            },
+            analysis: analysisData ? {
+              statistics: [analysisData],
+              documentation: [],
+              last_analyzed: analysisData.updated_at,
+            } : undefined,
           };
         }
 
@@ -59,12 +62,13 @@ export async function GET(request: NextRequest) {
       })
     );
 
-    await supabase.from('search_queries').insert({
-      query,
-      user_id: null, // No user tracking without authentication
-      filters: { sort, order, page, per_page },
-      results_count: response.data.total_count,
-    });
+    // Skip search query logging for now since the table doesn't exist in the schema
+    // await supabase.from('search_queries').insert({
+    //   query,
+    //   user_id: null, // No user tracking without authentication
+    //   filters: { sort, order, page, per_page },
+    //   results_count: response.data.total_count,
+    // });
 
     return NextResponse.json({
       repositories: repositoriesWithStats,

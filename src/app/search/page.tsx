@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Search, Filter, Star, GitFork, Calendar, FileText, BarChart3, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ThemeToggle } from '@/components/theme-toggle';
 // Authentication removed
 import Link from 'next/link';
+import { useRepositorySearch } from '@/hooks/use-repository-search';
+import { useRepositoryAnalysis } from '@/hooks/use-repository-analysis';
 
 interface Repository {
   id: number;
@@ -42,52 +44,31 @@ interface SearchResponse {
 export default function SearchPage() {
   const searchParams = useSearchParams();
   const [query, setQuery] = useState(searchParams.get('q') || '');
-  const [searchResults, setSearchResults] = useState<SearchResponse | null>(null);
-  const [loading, setLoading] = useState(false);
   const [sort, setSort] = useState('stars');
   const [order, setOrder] = useState('desc');
   const [page, setPage] = useState(1);
 
-  const performSearch = useCallback(async (searchQuery: string, currentPage = 1) => {
-    if (!searchQuery.trim()) return;
-    
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({
-        q: searchQuery,
-        sort,
-        order,
-        page: currentPage.toString(),
-        per_page: '30',
-      });
+  const { data: searchResults, isLoading: loading, error } = useRepositorySearch({
+    query,
+    sort,
+    order,
+    page,
+    per_page: 30,
+  });
 
-      const response = await fetch(`/api/github/search?${params}`);
-      const data = await response.json();
-      
-      if (response.ok) {
-        setSearchResults(data);
-      } else {
-        console.error('Search failed:', data.error);
-      }
-    } catch (error) {
-      console.error('Search error:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [sort, order]);
+  const { mutate: analyzeRepository, isPending: isAnalyzing } = useRepositoryAnalysis();
 
   useEffect(() => {
     const q = searchParams.get('q');
-    if (q) {
+    if (q && q !== query) {
       setQuery(q);
-      performSearch(q);
+      setPage(1);
     }
-  }, [searchParams, performSearch]);
+  }, [searchParams, query]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setPage(1);
-    performSearch(query, 1);
   };
 
   const formatNumber = (num: number) => {
@@ -108,23 +89,9 @@ export default function SearchPage() {
     });
   };
 
-  const analyzeRepository = async (repo: Repository) => {
-    try {
-      const [owner, name] = repo.full_name.split('/');
-      const response = await fetch('/api/github/analyze', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ owner, repo: name }),
-      });
-      
-      if (response.ok) {
-        performSearch(query, page);
-      }
-    } catch (error) {
-      console.error('Analysis error:', error);
-    }
+  const handleAnalyzeRepository = (repo: Repository) => {
+    const [owner, name] = repo.full_name.split('/');
+    analyzeRepository({ owner, repo: name });
   };
 
   return (
@@ -295,10 +262,11 @@ export default function SearchPage() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => analyzeRepository(repo)}
+                            onClick={() => handleAnalyzeRepository(repo)}
+                            disabled={isAnalyzing}
                           >
                             <FileText className="w-4 h-4 mr-1" />
-                            Analyze
+                            {isAnalyzing ? 'Analyzing...' : 'Analyze'}
                           </Button>
                         )}
                         
@@ -320,11 +288,7 @@ export default function SearchPage() {
                 <Button
                   variant="outline"
                   disabled={page === 1}
-                  onClick={() => {
-                    const newPage = page - 1;
-                    setPage(newPage);
-                    performSearch(query, newPage);
-                  }}
+                  onClick={() => setPage(page - 1)}
                 >
                   Previous
                 </Button>
@@ -334,11 +298,7 @@ export default function SearchPage() {
                 <Button
                   variant="outline"
                   disabled={page * 30 >= searchResults.total_count}
-                  onClick={() => {
-                    const newPage = page + 1;
-                    setPage(newPage);
-                    performSearch(query, newPage);
-                  }}
+                  onClick={() => setPage(page + 1)}
                 >
                   Next
                 </Button>
