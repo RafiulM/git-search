@@ -2,8 +2,7 @@
 
 // Authentication removed
 import { useState } from "react";
-import Chat from "@/components/chat";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -18,7 +17,6 @@ import {
   Eye,
   Calendar,
   ExternalLink,
-  TrendingUp,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import Link from "next/link";
@@ -194,73 +192,11 @@ export default function Home() {
           </div>
         </form>
 
-        {/* Feature Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-4xl mx-auto mb-8">
-          <Card className="text-center p-4 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/10 dark:to-indigo-900/10 border-blue-200 dark:border-blue-800">
-            <BarChart3 className="w-8 h-8 text-blue-600 mx-auto mb-2" />
-            <h3 className="font-semibold mb-1">Code Statistics</h3>
-            <p className="text-sm text-muted-foreground">Lines of code, file counts, and complexity metrics</p>
-          </Card>
-          
-          <Card className="text-center p-4 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/10 dark:to-emerald-900/10 border-green-200 dark:border-green-800">
-            <Zap className="w-8 h-8 text-green-600 mx-auto mb-2" />
-            <h3 className="font-semibold mb-1">AI Token Estimates</h3>
-            <p className="text-sm text-muted-foreground">Estimates for GPT-4, Claude, and Gemini models</p>
-          </Card>
-          
-          <Card className="text-center p-4 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/10 dark:to-pink-900/10 border-purple-200 dark:border-purple-800">
-            <FileText className="w-8 h-8 text-purple-600 mx-auto mb-2" />
-            <h3 className="font-semibold mb-1">Documentation</h3>
-            <p className="text-sm text-muted-foreground">Auto-generated docs and architecture diagrams</p>
-          </Card>
-          
-          <Card className="text-center p-4 bg-gradient-to-br from-orange-50 to-red-50 dark:from-orange-900/10 dark:to-red-900/10 border-orange-200 dark:border-orange-800">
-            <Database className="w-8 h-8 text-orange-600 mx-auto mb-2" />
-            <h3 className="font-semibold mb-1">Tech Stack Analysis</h3>
-            <p className="text-sm text-muted-foreground">Language breakdown and technology insights</p>
-          </Card>
-        </div>
       </div>
 
       <main className="container mx-auto px-4 sm:px-6 pb-12 sm:pb-8 max-w-5xl">
-        {/* Quick Start Section */}
-        <div className="text-center mb-8">
-          <h2 className="text-2xl font-bold mb-4">Start Exploring</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-3xl mx-auto">
-            <Link href="/search?q=react typescript">
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-                <CardContent className="p-4 text-center">
-                  <div className="text-2xl mb-2">⚛️</div>
-                  <h3 className="font-semibold mb-1">React Projects</h3>
-                  <p className="text-sm text-muted-foreground">Explore React and TypeScript repositories</p>
-                </CardContent>
-              </Card>
-            </Link>
-            
-            <Link href="/search?q=machine learning python">
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-                <CardContent className="p-4 text-center">
-                  <div className="text-2xl mb-2">🤖</div>
-                  <h3 className="font-semibold mb-1">ML & AI</h3>
-                  <p className="text-sm text-muted-foreground">Machine learning and AI projects</p>
-                </CardContent>
-              </Card>
-            </Link>
-            
-            <Link href="/search?q=backend golang">
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-                <CardContent className="p-4 text-center">
-                  <div className="text-2xl mb-2">🔧</div>
-                  <h3 className="font-semibold mb-1">Backend APIs</h3>
-                  <p className="text-sm text-muted-foreground">Server-side and API projects</p>
-                </CardContent>
-              </Card>
-            </Link>
-          </div>
-        </div>
-
-        {/* Featured Repositories */}
-        <div className="mt-16">
+        {/* Featured Repositories - Moved to Top */}
+        <div className="mb-16">
           <div className="text-center mb-8">
             <h2 className="text-2xl font-bold mb-2">Featured Repositories</h2>
             <p className="text-muted-foreground">
@@ -383,6 +319,75 @@ export default function Home() {
                 <Search className="w-4 h-4 mr-2" />
                 Explore More Repositories
               </Button>
+            </Link>
+          </div>
+        </div>
+
+        {/* Feature Cards */}
+        <div className="mb-12">
+          <div className="text-center mb-8">
+            <h2 className="text-2xl font-bold mb-2">Platform Features</h2>
+            <p className="text-muted-foreground">Advanced insights and analysis tools for GitHub repositories</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-4xl mx-auto">
+            <Card className="text-center p-4 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/10 dark:to-indigo-900/10 border-blue-200 dark:border-blue-800">
+              <BarChart3 className="w-8 h-8 text-blue-600 mx-auto mb-2" />
+              <h3 className="font-semibold mb-1">Code Statistics</h3>
+              <p className="text-sm text-muted-foreground">Lines of code, file counts, and complexity metrics</p>
+            </Card>
+            
+            <Card className="text-center p-4 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/10 dark:to-emerald-900/10 border-green-200 dark:border-green-800">
+              <Zap className="w-8 h-8 text-green-600 mx-auto mb-2" />
+              <h3 className="font-semibold mb-1">AI Token Estimates</h3>
+              <p className="text-sm text-muted-foreground">Estimates for GPT-4, Claude, and Gemini models</p>
+            </Card>
+            
+            <Card className="text-center p-4 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/10 dark:to-pink-900/10 border-purple-200 dark:border-purple-800">
+              <FileText className="w-8 h-8 text-purple-600 mx-auto mb-2" />
+              <h3 className="font-semibold mb-1">Documentation</h3>
+              <p className="text-sm text-muted-foreground">Auto-generated docs and architecture diagrams</p>
+            </Card>
+            
+            <Card className="text-center p-4 bg-gradient-to-br from-orange-50 to-red-50 dark:from-orange-900/10 dark:to-red-900/10 border-orange-200 dark:border-orange-800">
+              <Database className="w-8 h-8 text-orange-600 mx-auto mb-2" />
+              <h3 className="font-semibold mb-1">Tech Stack Analysis</h3>
+              <p className="text-sm text-muted-foreground">Language breakdown and technology insights</p>
+            </Card>
+          </div>
+        </div>
+
+        {/* Quick Start Section */}
+        <div className="text-center mb-8">
+          <h2 className="text-2xl font-bold mb-4">Start Exploring</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-3xl mx-auto">
+            <Link href="/search?q=react typescript">
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+                <CardContent className="p-4 text-center">
+                  <div className="text-2xl mb-2">⚛️</div>
+                  <h3 className="font-semibold mb-1">React Projects</h3>
+                  <p className="text-sm text-muted-foreground">Explore React and TypeScript repositories</p>
+                </CardContent>
+              </Card>
+            </Link>
+            
+            <Link href="/search?q=machine learning python">
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+                <CardContent className="p-4 text-center">
+                  <div className="text-2xl mb-2">🤖</div>
+                  <h3 className="font-semibold mb-1">ML & AI</h3>
+                  <p className="text-sm text-muted-foreground">Machine learning and AI projects</p>
+                </CardContent>
+              </Card>
+            </Link>
+            
+            <Link href="/search?q=backend golang">
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+                <CardContent className="p-4 text-center">
+                  <div className="text-2xl mb-2">🔧</div>
+                  <h3 className="font-semibold mb-1">Backend APIs</h3>
+                  <p className="text-sm text-muted-foreground">Server-side and API projects</p>
+                </CardContent>
+              </Card>
             </Link>
           </div>
         </div>
