@@ -357,41 +357,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Quick Start Section */}
-        <div className="text-center mb-8">
-          <h2 className="text-2xl font-bold mb-4">Start Exploring</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-3xl mx-auto">
-            <Link href="/search?q=react typescript">
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-                <CardContent className="p-4 text-center">
-                  <div className="text-2xl mb-2">⚛️</div>
-                  <h3 className="font-semibold mb-1">React Projects</h3>
-                  <p className="text-sm text-muted-foreground">Explore React and TypeScript repositories</p>
-                </CardContent>
-              </Card>
-            </Link>
-            
-            <Link href="/search?q=machine learning python">
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-                <CardContent className="p-4 text-center">
-                  <div className="text-2xl mb-2">🤖</div>
-                  <h3 className="font-semibold mb-1">ML & AI</h3>
-                  <p className="text-sm text-muted-foreground">Machine learning and AI projects</p>
-                </CardContent>
-              </Card>
-            </Link>
-            
-            <Link href="/search?q=backend golang">
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-                <CardContent className="p-4 text-center">
-                  <div className="text-2xl mb-2">🔧</div>
-                  <h3 className="font-semibold mb-1">Backend APIs</h3>
-                  <p className="text-sm text-muted-foreground">Server-side and API projects</p>
-                </CardContent>
-              </Card>
-            </Link>
-          </div>
-        </div>
       </main>
     </div>
   );
