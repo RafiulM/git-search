@@ -1,5 +1,5 @@
-import { currentUser } from "@clerk/nextjs/server";
+// User authentication removed - this file is now empty
 
 export async function getCurrentUser() {
-  return await currentUser();
+  return null; // No user authentication available
 }

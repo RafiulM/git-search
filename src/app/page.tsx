@@ -1,24 +1,157 @@
 "use client";
 
-import { SignInButton, SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
+// Authentication removed
+import { useState } from "react";
 import Chat from "@/components/chat";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { checkEnvironmentVariables } from "@/lib/env-check";
+import { Input } from "@/components/ui/input";
 import {
-  Copy,
-  CheckCircle,
-  AlertCircle,
+  Search,
+  GitBranch,
+  BarChart3,
+  FileText,
   Zap,
   Database,
-  Shield,
+  Star,
+  GitFork,
+  Eye,
+  Calendar,
   ExternalLink,
+  TrendingUp,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
-import Image from "next/image";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+
+// Dummy repository data with AI-focused statistics
+const dummyRepositories = [
+  {
+    id: 1,
+    name: "facebook/react",
+    description: "The library for web and native user interfaces",
+    language: "JavaScript",
+    stars: 227000,
+    forks: 46000,
+    watchers: 6800,
+    lastUpdated: "2024-01-15",
+    stats: {
+      linesOfCode: 125000,
+      characters: 4200000,
+      files: 1250,
+      storageSize: "15.2 MB",
+      tokenEstimates: {
+        gpt4: 1200000,
+        claude: 933000,
+        gemini: 1050000
+      },
+      complexity: 7.2,
+      maintainability: 82.5
+    },
+    topics: ["javascript", "react", "frontend", "library", "components"]
+  },
+  {
+    id: 2,
+    name: "microsoft/vscode",
+    description: "Visual Studio Code - Open Source Build",
+    language: "TypeScript",
+    stars: 163000,
+    forks: 28000,
+    watchers: 3500,
+    lastUpdated: "2024-01-14",
+    stats: {
+      linesOfCode: 890000,
+      characters: 28500000,
+      files: 8500,
+      storageSize: "145.8 MB",
+      tokenEstimates: {
+        gpt4: 8140000,
+        claude: 6333000,
+        gemini: 7125000
+      },
+      complexity: 8.9,
+      maintainability: 75.3
+    },
+    topics: ["typescript", "editor", "electron", "ide", "code-editor"]
+  },
+  {
+    id: 3,
+    name: "vercel/next.js",
+    description: "The React Framework for the Web",
+    language: "JavaScript",
+    stars: 125000,
+    forks: 26000,
+    watchers: 1800,
+    lastUpdated: "2024-01-16",
+    stats: {
+      linesOfCode: 320000,
+      characters: 12800000,
+      files: 3200,
+      storageSize: "52.4 MB",
+      tokenEstimates: {
+        gpt4: 3657000,
+        claude: 2844000,
+        gemini: 3200000
+      },
+      complexity: 6.8,
+      maintainability: 85.7
+    },
+    topics: ["nextjs", "react", "framework", "fullstack", "ssr"]
+  },
+  {
+    id: 4,
+    name: "pytorch/pytorch",
+    description: "Tensors and Dynamic neural networks in Python",
+    language: "Python",
+    stars: 82000,
+    forks: 22000,
+    watchers: 2100,
+    lastUpdated: "2024-01-13",
+    stats: {
+      linesOfCode: 1500000,
+      characters: 52000000,
+      files: 12000,
+      storageSize: "380.5 MB",
+      tokenEstimates: {
+        gpt4: 14857000,
+        claude: 11555000,
+        gemini: 13000000
+      },
+      complexity: 9.1,
+      maintainability: 68.2
+    },
+    topics: ["python", "pytorch", "machine-learning", "deep-learning", "ai"]
+  }
+];
 
 export default function Home() {
-  const envStatus = checkEnvironmentVariables();
+  const [searchQuery, setSearchQuery] = useState('');
+  const router = useRouter();
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      router.push(`/search?q=${encodeURIComponent(searchQuery)}`);
+    }
+  };
+
+  const formatNumber = (num: number) => {
+    if (num >= 1000000) {
+      return (num / 1000000).toFixed(1) + 'M';
+    }
+    if (num >= 1000) {
+      return (num / 1000).toFixed(1) + 'k';
+    }
+    return num.toString();
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-cyan-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
@@ -27,164 +160,232 @@ export default function Home() {
         <div className="absolute top-4 right-4 sm:top-6 sm:right-6">
           <div className="flex items-center gap-2 sm:gap-3">
             <ThemeToggle />
-            <SignedOut>
-              <SignInButton>
-                <Button size="sm" className="text-xs sm:text-sm">
-                  Sign In
-                </Button>
-              </SignInButton>
-            </SignedOut>
-            <SignedIn>
-              <UserButton />
-            </SignedIn>
           </div>
         </div>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 mb-4">
-          <Image
-            src="/codeguide-logo.png"
-            alt="CodeGuide Logo"
-            width={50}
-            height={50}
-            className="rounded-xl sm:w-[60px] sm:h-[60px]"
-          />
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-blue-600 via-blue-500 to-blue-400 bg-clip-text text-transparent font-parkinsans">
-            CodeGuide Starter
+          <GitBranch className="w-12 h-12 sm:w-16 sm:h-16 text-blue-600" />
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-blue-400 bg-clip-text text-transparent">
+            Git Search
           </h1>
         </div>
-        <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto px-4">
-          Build faster with your AI coding agent
+        <p className="text-lg sm:text-xl text-muted-foreground max-w-3xl mx-auto px-4 mb-8">
+          The ultimate GitHub repository directory with AI-focused statistics and comprehensive analysis. 
+          Get insights not available on GitHub - including lines of code, token estimates for AI models, 
+          storage analysis, and auto-generated documentation.
         </p>
+
+        {/* Search Bar */}
+        <form onSubmit={handleSearch} className="max-w-2xl mx-auto mb-8">
+          <div className="flex gap-2">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <Input
+                type="text"
+                placeholder="Search repositories (e.g., react typescript, machine learning python)"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 h-12 text-base"
+              />
+            </div>
+            <Button type="submit" size="lg" className="h-12 px-8">
+              Search
+            </Button>
+          </div>
+        </form>
+
+        {/* Feature Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-4xl mx-auto mb-8">
+          <Card className="text-center p-4 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/10 dark:to-indigo-900/10 border-blue-200 dark:border-blue-800">
+            <BarChart3 className="w-8 h-8 text-blue-600 mx-auto mb-2" />
+            <h3 className="font-semibold mb-1">Code Statistics</h3>
+            <p className="text-sm text-muted-foreground">Lines of code, file counts, and complexity metrics</p>
+          </Card>
+          
+          <Card className="text-center p-4 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/10 dark:to-emerald-900/10 border-green-200 dark:border-green-800">
+            <Zap className="w-8 h-8 text-green-600 mx-auto mb-2" />
+            <h3 className="font-semibold mb-1">AI Token Estimates</h3>
+            <p className="text-sm text-muted-foreground">Estimates for GPT-4, Claude, and Gemini models</p>
+          </Card>
+          
+          <Card className="text-center p-4 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/10 dark:to-pink-900/10 border-purple-200 dark:border-purple-800">
+            <FileText className="w-8 h-8 text-purple-600 mx-auto mb-2" />
+            <h3 className="font-semibold mb-1">Documentation</h3>
+            <p className="text-sm text-muted-foreground">Auto-generated docs and architecture diagrams</p>
+          </Card>
+          
+          <Card className="text-center p-4 bg-gradient-to-br from-orange-50 to-red-50 dark:from-orange-900/10 dark:to-red-900/10 border-orange-200 dark:border-orange-800">
+            <Database className="w-8 h-8 text-orange-600 mx-auto mb-2" />
+            <h3 className="font-semibold mb-1">Tech Stack Analysis</h3>
+            <p className="text-sm text-muted-foreground">Language breakdown and technology insights</p>
+          </Card>
+        </div>
       </div>
 
       <main className="container mx-auto px-4 sm:px-6 pb-12 sm:pb-8 max-w-5xl">
-        {envStatus.allConfigured ? (
-          <div className="text-center mb-8">
-            <div className="text-4xl sm:text-5xl mb-2">🎉</div>
-            <div className="font-bold text-lg sm:text-xl mb-1">All Set!</div>
-            <div className="text-sm sm:text-base text-muted-foreground">
-              Ready for development
-            </div>
+        {/* Quick Start Section */}
+        <div className="text-center mb-8">
+          <h2 className="text-2xl font-bold mb-4">Start Exploring</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-3xl mx-auto">
+            <Link href="/search?q=react typescript">
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+                <CardContent className="p-4 text-center">
+                  <div className="text-2xl mb-2">⚛️</div>
+                  <h3 className="font-semibold mb-1">React Projects</h3>
+                  <p className="text-sm text-muted-foreground">Explore React and TypeScript repositories</p>
+                </CardContent>
+              </Card>
+            </Link>
+            
+            <Link href="/search?q=machine learning python">
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+                <CardContent className="p-4 text-center">
+                  <div className="text-2xl mb-2">🤖</div>
+                  <h3 className="font-semibold mb-1">ML & AI</h3>
+                  <p className="text-sm text-muted-foreground">Machine learning and AI projects</p>
+                </CardContent>
+              </Card>
+            </Link>
+            
+            <Link href="/search?q=backend golang">
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+                <CardContent className="p-4 text-center">
+                  <div className="text-2xl mb-2">🔧</div>
+                  <h3 className="font-semibold mb-1">Backend APIs</h3>
+                  <p className="text-sm text-muted-foreground">Server-side and API projects</p>
+                </CardContent>
+              </Card>
+            </Link>
           </div>
-        ) : (
-          <>
-            <div className="text-center mb-6">
-              <div className="text-4xl sm:text-5xl mb-2">⚠️</div>
-              <div className="font-semibold text-lg sm:text-xl mb-1">
-                Setup Required
-              </div>
-              <div className="text-sm sm:text-base text-muted-foreground">
-                Retrieve keys for environment variables
-              </div>
-            </div>
+        </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-6">
-              {/* Clerk */}
-              <div className="text-center p-3 sm:p-4 rounded-lg bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/10 dark:to-indigo-900/10">
-                <div className="flex justify-center mb-3">
-                  {envStatus.clerk ? (
-                    <CheckCircle className="w-6 h-6 sm:w-8 sm:h-8 text-green-500" />
-                  ) : (
-                    <Shield className="w-6 h-6 sm:w-8 sm:h-8 text-blue-500" />
-                  )}
-                </div>
-                <div className="font-semibold mb-2 text-sm sm:text-base">
-                  Clerk Auth
-                </div>
-                <div className="text-xs text-muted-foreground mb-3">
-                  {envStatus.clerk ? "✓ Ready" : "Setup required"}
-                </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() =>
-                    window.open("https://dashboard.clerk.com", "_blank")
-                  }
-                  className="w-full text-xs sm:text-sm"
-                >
-                  <ExternalLink className="w-3 h-3 mr-1" />
-                  Dashboard
-                </Button>
-              </div>
+        {/* Featured Repositories */}
+        <div className="mt-16">
+          <div className="text-center mb-8">
+            <h2 className="text-2xl font-bold mb-2">Featured Repositories</h2>
+            <p className="text-muted-foreground">
+              Popular repositories with comprehensive AI-focused analysis
+            </p>
+          </div>
+          
+          <div className="space-y-6">
+            {dummyRepositories.map((repo) => (
+              <Card key={repo.id} className="hover:shadow-lg transition-shadow">
+                <CardContent className="p-6">
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Link 
+                          href={`/repository/${repo.name.replace('/', '-')}`}
+                          className="text-xl font-semibold text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                        >
+                          {repo.name}
+                        </Link>
+                        <a
+                          href={`https://github.com/${repo.name}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-gray-400 hover:text-gray-600"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </a>
+                      </div>
+                      
+                      <p className="text-muted-foreground mb-3">
+                        {repo.description}
+                      </p>
 
-              {/* Supabase */}
-              <div className="text-center p-3 sm:p-4 rounded-lg bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/10 dark:to-emerald-900/10">
-                <div className="flex justify-center mb-3">
-                  {envStatus.supabase ? (
-                    <CheckCircle className="w-6 h-6 sm:w-8 sm:h-8 text-green-500" />
-                  ) : (
-                    <Database className="w-6 h-6 sm:w-8 sm:h-8 text-green-500" />
-                  )}
-                </div>
-                <div className="font-semibold mb-2 text-sm sm:text-base">
-                  Supabase DB
-                </div>
-                <div className="text-xs text-muted-foreground mb-3">
-                  {envStatus.supabase ? "✓ Ready" : "Setup required"}
-                </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() =>
-                    window.open("https://supabase.com/dashboard", "_blank")
-                  }
-                  className="w-full text-xs sm:text-sm"
-                >
-                  <ExternalLink className="w-3 h-3 mr-1" />
-                  Dashboard
-                </Button>
-              </div>
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        <span className="bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-2 py-1 rounded text-xs font-medium">
+                          {repo.language}
+                        </span>
+                        {repo.topics.slice(0, 3).map((topic) => (
+                          <span key={topic} className="bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 px-2 py-1 rounded text-xs">
+                            {topic}
+                          </span>
+                        ))}
+                        {repo.topics.length > 3 && (
+                          <span className="bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 px-2 py-1 rounded text-xs">
+                            +{repo.topics.length - 3} more
+                          </span>
+                        )}
+                      </div>
 
-              {/* AI */}
-              <div className="text-center p-3 sm:p-4 rounded-lg bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/10 dark:to-pink-900/10 sm:col-span-2 md:col-span-1">
-                <div className="flex justify-center mb-3">
-                  {envStatus.ai ? (
-                    <CheckCircle className="w-6 h-6 sm:w-8 sm:h-8 text-green-500" />
-                  ) : (
-                    <Zap className="w-6 h-6 sm:w-8 sm:h-8 text-purple-500" />
-                  )}
-                </div>
-                <div className="font-semibold mb-2 text-sm sm:text-base">
-                  AI SDK
-                </div>
-                <div className="text-xs text-muted-foreground mb-3">
-                  {envStatus.ai ? "✓ Ready" : "Optional"}
-                </div>
-                <div className="grid grid-cols-2 gap-1 sm:gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() =>
-                      window.open("https://platform.openai.com", "_blank")
-                    }
-                    className="text-xs px-1 sm:px-2"
-                  >
-                    OpenAI
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() =>
-                      window.open("https://console.anthropic.com", "_blank")
-                    }
-                    className="text-xs px-1 sm:px-2"
-                  >
-                    Anthropic
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </>
-        )}
+                      <div className="flex items-center gap-6 text-sm text-muted-foreground mb-4">
+                        <div className="flex items-center gap-1">
+                          <Star className="w-4 h-4" />
+                          {formatNumber(repo.stars)}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <GitFork className="w-4 h-4" />
+                          {formatNumber(repo.forks)}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Eye className="w-4 h-4" />
+                          {formatNumber(repo.watchers)}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Calendar className="w-4 h-4" />
+                          Updated {formatDate(repo.lastUpdated)}
+                        </div>
+                      </div>
 
-        {/* Chat Section */}
-        <SignedIn>
-          {envStatus.allConfigured && (
-            <div className="mt-6 sm:mt-8">
-              <Chat />
-            </div>
-          )}
-        </SignedIn>
+                      {/* AI-focused Statistics Preview */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <div className="text-center">
+                          <div className="text-lg font-bold text-blue-600">
+                            {formatNumber(repo.stats.linesOfCode)}
+                          </div>
+                          <div className="text-xs text-muted-foreground">Lines of Code</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-lg font-bold text-green-600">
+                            {repo.stats.files}
+                          </div>
+                          <div className="text-xs text-muted-foreground">Files</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-lg font-bold text-purple-600">
+                            {repo.stats.storageSize}
+                          </div>
+                          <div className="text-xs text-muted-foreground">Storage</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-lg font-bold text-orange-600">
+                            {formatNumber(repo.stats.tokenEstimates.gpt4)}
+                          </div>
+                          <div className="text-xs text-muted-foreground">GPT-4 Tokens</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-2 ml-4">
+                      <Link href={`/repository/${repo.name.replace('/', '-')}`}>
+                        <Button variant="outline" size="sm">
+                          <BarChart3 className="w-4 h-4 mr-1" />
+                          View Analysis
+                        </Button>
+                      </Link>
+                      
+                      <div className="text-xs text-muted-foreground text-center">
+                        Complexity: {repo.stats.complexity}/10
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          <div className="text-center mt-8">
+            <Link href="/search">
+              <Button size="lg">
+                <Search className="w-4 h-4 mr-2" />
+                Explore More Repositories
+              </Button>
+            </Link>
+          </div>
+        </div>
       </main>
     </div>
   );
