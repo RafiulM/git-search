@@ -9,29 +9,22 @@ CREATE TABLE IF NOT EXISTS public.repositories (
   updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
   
   -- Repository identification
-  name TEXT NULL,
-  repo_url TEXT NULL,
+  name TEXT NOT NULL,
+  repo_url TEXT NOT NULL UNIQUE,
   author TEXT NULL,
   branch TEXT NULL,
   
   -- Content storage
   full_text TEXT NULL,
-  tree_structure TEXT NULL,
   full_text_path TEXT NULL,
   content_url TEXT NULL,
   content_expires_at TIMESTAMP WITH TIME ZONE NULL,
   
-  -- Analysis metadata
-  analysis_version INTEGER NULL DEFAULT 1,
-  
-  -- User ownership (for RLS)
-  user_id TEXT NOT NULL, -- Clerk user ID
-  
   CONSTRAINT repositories_pkey PRIMARY KEY (id)
 ) TABLESPACE pg_default;
 
--- Create repository_stats table for tracking statistics over time
-CREATE TABLE IF NOT EXISTS public.repository_stats (
+-- Create repository_analysis table for tracking analysis data over time
+CREATE TABLE IF NOT EXISTS public.repository_analysis (
   id UUID NOT NULL DEFAULT gen_random_uuid(),
   repository_id UUID NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
@@ -53,14 +46,17 @@ CREATE TABLE IF NOT EXISTS public.repository_stats (
   estimated_tokens INTEGER NULL,
   estimated_size_bytes INTEGER NULL,
   
-  -- Additional statistics as JSON for flexibility
-  statistics JSONB NULL,
+  -- Tree structure from repository analysis
+  tree_structure TEXT NULL,
   
-  -- Stats version for tracking changes over time
-  stats_version INTEGER NOT NULL DEFAULT 1,
+  -- Additional analysis data as JSON for flexibility
+  analysis_data JSONB NULL,
   
-  CONSTRAINT repository_stats_pkey PRIMARY KEY (id),
-  CONSTRAINT repository_stats_repository_id_fkey FOREIGN KEY (repository_id) 
+  -- Analysis version for tracking changes over time
+  analysis_version INTEGER NOT NULL DEFAULT 1,
+  
+  CONSTRAINT repository_analysis_pkey PRIMARY KEY (id),
+  CONSTRAINT repository_analysis_repository_id_fkey FOREIGN KEY (repository_id) 
     REFERENCES public.repositories(id) ON DELETE CASCADE
 ) TABLESPACE pg_default;
 
@@ -72,25 +68,12 @@ CREATE TABLE IF NOT EXISTS public.documents (
   updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
   
   -- Document metadata
-  document_type TEXT NOT NULL CHECK (document_type IN (
-    'project_requirements',
-    'tech_stack',
-    'summary',
-    'app_flow',
-    'backend_structure',
-    'frontend_guidelines',
-    'security_guidelines',
-    'api_documentation',
-    'setup_guide',
-    'flowchart',
-    'mermaid_diagram'
-  )),
+  document_type TEXT NOT NULL,
   title TEXT NOT NULL,
   description TEXT NULL,
   
   -- Document content
   content TEXT NOT NULL,
-  content_format TEXT NOT NULL DEFAULT 'markdown' CHECK (content_format IN ('markdown', 'html', 'json', 'mermaid')),
   
   -- Generation metadata
   generated_by TEXT NULL DEFAULT 'system',
@@ -112,113 +95,67 @@ CREATE TABLE IF NOT EXISTS public.documents (
     REFERENCES public.documents(id) ON DELETE SET NULL
 ) TABLESPACE pg_default;
 
+-- Create user_favorites table for users to favorite repositories
+CREATE TABLE IF NOT EXISTS public.user_favorites (
+  id UUID NOT NULL DEFAULT gen_random_uuid(),
+  user_id TEXT NOT NULL, -- Clerk user ID
+  repository_id UUID NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  
+  CONSTRAINT user_favorites_pkey PRIMARY KEY (id),
+  CONSTRAINT user_favorites_repository_id_fkey FOREIGN KEY (repository_id) 
+    REFERENCES public.repositories(id) ON DELETE CASCADE,
+  -- Ensure each user can only favorite a repository once
+  CONSTRAINT user_favorites_unique UNIQUE (user_id, repository_id)
+) TABLESPACE pg_default;
+
 -- Enable Row Level Security on all tables
 ALTER TABLE public.repositories ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.repository_stats ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.repository_analysis ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.documents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_favorites ENABLE ROW LEVEL SECURITY;
 
--- RLS Policies for repositories table
--- Users can read all repositories (public access for discovery)
+-- RLS Policies for repositories table - public read only, write via service_role_key only
 CREATE POLICY "Anyone can read repositories" ON public.repositories
   FOR SELECT USING (true);
 
--- Users can only insert repositories as themselves
-CREATE POLICY "Users can insert own repositories" ON public.repositories
-  FOR INSERT WITH CHECK (auth.jwt() ->> 'sub' = user_id);
-
--- Users can only update their own repositories
-CREATE POLICY "Users can update own repositories" ON public.repositories
-  FOR UPDATE USING (auth.jwt() ->> 'sub' = user_id);
-
--- Users can only delete their own repositories
-CREATE POLICY "Users can delete own repositories" ON public.repositories
-  FOR DELETE USING (auth.jwt() ->> 'sub' = user_id);
-
--- RLS Policies for repository_stats table
--- Users can read all repository stats (public access)
-CREATE POLICY "Anyone can read repository stats" ON public.repository_stats
+-- RLS Policies for repository_analysis table - public read only, write via service_role_key only
+CREATE POLICY "Anyone can read repository analysis" ON public.repository_analysis
   FOR SELECT USING (true);
 
--- Users can insert stats for repositories they own
-CREATE POLICY "Users can insert stats for own repositories" ON public.repository_stats
-  FOR INSERT WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM public.repositories 
-      WHERE repositories.id = repository_stats.repository_id 
-      AND repositories.user_id = auth.jwt() ->> 'sub'
-    )
-  );
-
--- Users can update stats for repositories they own
-CREATE POLICY "Users can update stats for own repositories" ON public.repository_stats
-  FOR UPDATE USING (
-    EXISTS (
-      SELECT 1 FROM public.repositories 
-      WHERE repositories.id = repository_stats.repository_id 
-      AND repositories.user_id = auth.jwt() ->> 'sub'
-    )
-  );
-
--- Users can delete stats for repositories they own
-CREATE POLICY "Users can delete stats for own repositories" ON public.repository_stats
-  FOR DELETE USING (
-    EXISTS (
-      SELECT 1 FROM public.repositories 
-      WHERE repositories.id = repository_stats.repository_id 
-      AND repositories.user_id = auth.jwt() ->> 'sub'
-    )
-  );
-
--- RLS Policies for documents table
--- Users can read all documents (public access for sharing)
+-- RLS Policies for documents table - anyone can read/write
 CREATE POLICY "Anyone can read documents" ON public.documents
   FOR SELECT USING (true);
 
--- Users can insert documents for repositories they own
-CREATE POLICY "Users can insert documents for own repositories" ON public.documents
-  FOR INSERT WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM public.repositories 
-      WHERE repositories.id = documents.repository_id 
-      AND repositories.user_id = auth.jwt() ->> 'sub'
-    )
-  );
+-- RLS Policies for user_favorites table
+-- Anyone can read favorites (for public discovery)
+CREATE POLICY "Anyone can read user favorites" ON public.user_favorites
+  FOR SELECT USING (true);
 
--- Users can update documents for repositories they own
-CREATE POLICY "Users can update documents for own repositories" ON public.documents
-  FOR UPDATE USING (
-    EXISTS (
-      SELECT 1 FROM public.repositories 
-      WHERE repositories.id = documents.repository_id 
-      AND repositories.user_id = auth.jwt() ->> 'sub'
-    )
-  );
+-- Users can only manage their own favorites
+CREATE POLICY "Users can insert own favorites" ON public.user_favorites
+  FOR INSERT WITH CHECK (auth.jwt() ->> 'sub' = user_id);
 
--- Users can delete documents for repositories they own
-CREATE POLICY "Users can delete documents for own repositories" ON public.documents
-  FOR DELETE USING (
-    EXISTS (
-      SELECT 1 FROM public.repositories 
-      WHERE repositories.id = documents.repository_id 
-      AND repositories.user_id = auth.jwt() ->> 'sub'
-    )
-  );
+CREATE POLICY "Users can delete own favorites" ON public.user_favorites
+  FOR DELETE USING (auth.jwt() ->> 'sub' = user_id);
 
 -- Create indexes for better performance
-CREATE INDEX IF NOT EXISTS idx_repositories_user_id ON public.repositories(user_id);
 CREATE INDEX IF NOT EXISTS idx_repositories_created_at ON public.repositories(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_repositories_repo_url ON public.repositories(repo_url);
 CREATE INDEX IF NOT EXISTS idx_repositories_author ON public.repositories(author);
 
-CREATE INDEX IF NOT EXISTS idx_repository_stats_repository_id ON public.repository_stats(repository_id);
-CREATE INDEX IF NOT EXISTS idx_repository_stats_created_at ON public.repository_stats(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_repository_stats_stats_version ON public.repository_stats(repository_id, stats_version DESC);
+CREATE INDEX IF NOT EXISTS idx_repository_analysis_repository_id ON public.repository_analysis(repository_id);
+CREATE INDEX IF NOT EXISTS idx_repository_analysis_created_at ON public.repository_analysis(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_repository_analysis_version ON public.repository_analysis(repository_id, analysis_version DESC);
 
 CREATE INDEX IF NOT EXISTS idx_documents_repository_id ON public.documents(repository_id);
 CREATE INDEX IF NOT EXISTS idx_documents_document_type ON public.documents(document_type);
 CREATE INDEX IF NOT EXISTS idx_documents_current ON public.documents(repository_id, document_type, is_current);
 CREATE INDEX IF NOT EXISTS idx_documents_created_at ON public.documents(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_documents_version ON public.documents(repository_id, document_type, version DESC);
+
+CREATE INDEX IF NOT EXISTS idx_user_favorites_user_id ON public.user_favorites(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_favorites_repository_id ON public.user_favorites(repository_id);
+CREATE INDEX IF NOT EXISTS idx_user_favorites_created_at ON public.user_favorites(created_at DESC);
 
 -- Create updated_at triggers
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -234,8 +171,8 @@ CREATE TRIGGER update_repositories_updated_at
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_repository_stats_updated_at
-  BEFORE UPDATE ON public.repository_stats
+CREATE TRIGGER update_repository_analysis_updated_at
+  BEFORE UPDATE ON public.repository_analysis
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
 
@@ -266,19 +203,19 @@ CREATE TRIGGER handle_document_versioning_trigger
   FOR EACH ROW
   EXECUTE FUNCTION handle_document_versioning();
 
--- Create function to get latest stats for a repository
-CREATE OR REPLACE FUNCTION get_latest_repository_stats(repo_id UUID)
-RETURNS public.repository_stats AS $$
+-- Create function to get latest analysis for a repository
+CREATE OR REPLACE FUNCTION get_latest_repository_analysis(repo_id UUID)
+RETURNS public.repository_analysis AS $$
 DECLARE
-  latest_stats public.repository_stats;
+  latest_analysis public.repository_analysis;
 BEGIN
-  SELECT * INTO latest_stats
-  FROM public.repository_stats
+  SELECT * INTO latest_analysis
+  FROM public.repository_analysis
   WHERE repository_id = repo_id
   ORDER BY created_at DESC
   LIMIT 1;
   
-  RETURN latest_stats;
+  RETURN latest_analysis;
 END;
 $$ language 'plpgsql';
 
@@ -295,7 +232,37 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
--- Create view for repository summary with latest stats
+-- Create function to check if a user has favorited a repository
+CREATE OR REPLACE FUNCTION is_favorited_by_user(repo_id UUID, user_id_param TEXT)
+RETURNS BOOLEAN AS $$
+DECLARE
+  is_favorited BOOLEAN;
+BEGIN
+  SELECT EXISTS(
+    SELECT 1 
+    FROM public.user_favorites 
+    WHERE repository_id = repo_id 
+      AND user_id = user_id_param
+  ) INTO is_favorited;
+  
+  RETURN is_favorited;
+END;
+$$ language 'plpgsql';
+
+-- Create function to get user's favorite repositories
+CREATE OR REPLACE FUNCTION get_user_favorite_repositories(user_id_param TEXT)
+RETURNS SETOF public.repositories AS $$
+BEGIN
+  RETURN QUERY
+  SELECT r.*
+  FROM public.repositories r
+  INNER JOIN public.user_favorites uf ON r.id = uf.repository_id
+  WHERE uf.user_id = user_id_param
+  ORDER BY uf.created_at DESC;
+END;
+$$ language 'plpgsql';
+
+-- Create view for repository summary with latest analysis and favorite count
 CREATE OR REPLACE VIEW repository_summary AS
 SELECT 
   r.id,
@@ -305,34 +272,43 @@ SELECT
   r.branch,
   r.created_at,
   r.updated_at,
-  r.user_id,
-  rs.files_processed,
-  rs.total_characters,
-  rs.total_lines,
-  rs.total_files_found,
-  rs.total_directories,
-  rs.estimated_tokens,
-  rs.estimated_size_bytes,
-  rs.statistics,
-  rs.created_at as stats_created_at
+  ra.files_processed,
+  ra.total_characters,
+  ra.total_lines,
+  ra.total_files_found,
+  ra.total_directories,
+  ra.estimated_tokens,
+  ra.estimated_size_bytes,
+  ra.tree_structure,
+  ra.analysis_data,
+  ra.created_at as analysis_created_at,
+  COALESCE(fav_count.favorite_count, 0) as favorite_count
 FROM public.repositories r
 LEFT JOIN LATERAL (
   SELECT *
-  FROM public.repository_stats
+  FROM public.repository_analysis
   WHERE repository_id = r.id
   ORDER BY created_at DESC
   LIMIT 1
-) rs ON true;
+) ra ON true
+LEFT JOIN (
+  SELECT 
+    repository_id,
+    COUNT(*) as favorite_count
+  FROM public.user_favorites
+  GROUP BY repository_id
+) fav_count ON r.id = fav_count.repository_id;
 
 -- Grant appropriate permissions
 GRANT USAGE ON SCHEMA public TO anon, authenticated;
 GRANT SELECT ON public.repositories TO anon, authenticated;
-GRANT SELECT ON public.repository_stats TO anon, authenticated;
+GRANT SELECT ON public.repository_analysis TO anon, authenticated;
 GRANT SELECT ON public.documents TO anon, authenticated;
+GRANT SELECT ON public.user_favorites TO anon, authenticated;
 GRANT SELECT ON public.repository_summary TO anon, authenticated;
 
-GRANT INSERT, UPDATE, DELETE ON public.repositories TO authenticated;
-GRANT INSERT, UPDATE, DELETE ON public.repository_stats TO authenticated;
+-- repositories and repository_analysis are only writable via service_role_key
 GRANT INSERT, UPDATE, DELETE ON public.documents TO authenticated;
+GRANT INSERT, DELETE ON public.user_favorites TO authenticated;
 
 GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO authenticated;
