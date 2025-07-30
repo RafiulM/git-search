@@ -10,7 +10,6 @@ import {
   Calendar, 
   FileText, 
   BarChart3, 
-  Heart,
   ExternalLink,
   Code,
   Zap,
@@ -384,216 +383,240 @@ export default function RepositoryPage() {
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Main Stats */}
-              <div className="lg:col-span-2 space-y-6">
+            {/* Full Width Main Stats */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BarChart3 className="w-5 h-5" />
+                  Repository Statistics
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {stats ? (
+                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-blue-600">
+                        {formatNumber(stats.total_lines)}
+                      </div>
+                      <div className="text-sm text-muted-foreground">Lines of Code</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-green-600">
+                        {stats.file_count}
+                      </div>
+                      <div className="text-sm text-muted-foreground">Files</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-purple-600">
+                        {formatBytes(stats.storage_size_bytes)}
+                      </div>
+                      <div className="text-sm text-muted-foreground">Storage</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-orange-600">
+                        {stats.complexity_score.toFixed(1)}
+                      </div>
+                      <div className="text-sm text-muted-foreground">Complexity</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-cyan-600">
+                        {stats.directory_count}
+                      </div>
+                      <div className="text-sm text-muted-foreground">Directories</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-pink-600">
+                        {stats.maintainability_index.toFixed(1)}
+                      </div>
+                      <div className="text-sm text-muted-foreground">Maintainability</div>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground">No statistics available</p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Full Width AI Token Estimates */}
+            {stats && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Zap className="w-5 h-5" />
+                    AI Model Token Estimates
+                  </CardTitle>
+                  <CardDescription>
+                    Estimated tokens for different AI models
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="text-center p-6 border rounded-lg">
+                      <div className="text-xl font-semibold">GPT-4</div>
+                      <div className="text-3xl font-bold text-green-600">
+                        {formatNumber(stats.estimated_tokens_gpt4)}
+                      </div>
+                      <div className="text-sm text-muted-foreground">tokens</div>
+                    </div>
+                    <div className="text-center p-6 border rounded-lg">
+                      <div className="text-xl font-semibold">Claude 3</div>
+                      <div className="text-3xl font-bold text-blue-600">
+                        {formatNumber(stats.estimated_tokens_claude3)}
+                      </div>
+                      <div className="text-sm text-muted-foreground">tokens</div>
+                    </div>
+                    <div className="text-center p-6 border rounded-lg">
+                      <div className="text-xl font-semibold">Gemini</div>
+                      <div className="text-3xl font-bold text-purple-600">
+                        {formatNumber(stats.estimated_tokens_gemini)}
+                      </div>
+                      <div className="text-sm text-muted-foreground">tokens</div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Full Width Repository Info and Languages */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Repository Info */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Repository Info</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Primary Language</span>
+                    <span className="font-medium">{repository.language || 'Unknown'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">License</span>
+                    <span className="font-medium">{repository.license_name || 'None'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Size</span>
+                    <span className="font-medium">{repository.size_kb} KB</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Default Branch</span>
+                    <span className="font-medium">{repository.default_branch}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Open Issues</span>
+                    <span className="font-medium">{repository.open_issues_count}</span>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Language Breakdown */}
+              {Object.keys(languages).length > 0 && (
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      <BarChart3 className="w-5 h-5" />
-                      Repository Statistics
+                      <PieChart className="w-5 h-5" />
+                      Languages
                     </CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    {stats ? (
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div className="text-center">
-                          <div className="text-2xl font-bold text-blue-600">
-                            {formatNumber(stats.total_lines)}
-                          </div>
-                          <div className="text-sm text-muted-foreground">Lines of Code</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-2xl font-bold text-green-600">
-                            {stats.file_count}
-                          </div>
-                          <div className="text-sm text-muted-foreground">Files</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-2xl font-bold text-purple-600">
-                            {formatBytes(stats.storage_size_bytes)}
-                          </div>
-                          <div className="text-sm text-muted-foreground">Storage</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-2xl font-bold text-orange-600">
-                            {stats.complexity_score.toFixed(1)}
-                          </div>
-                          <div className="text-sm text-muted-foreground">Complexity</div>
-                        </div>
-                      </div>
-                    ) : (
-                      <p className="text-muted-foreground">No statistics available</p>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* AI Token Estimates */}
-                {stats && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Zap className="w-5 h-5" />
-                        AI Model Token Estimates
-                      </CardTitle>
-                      <CardDescription>
-                        Estimated tokens for different AI models
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="text-center p-4 border rounded-lg">
-                          <div className="text-xl font-semibold">GPT-4</div>
-                          <div className="text-2xl font-bold text-green-600">
-                            {formatNumber(stats.estimated_tokens_gpt4)}
-                          </div>
-                          <div className="text-sm text-muted-foreground">tokens</div>
-                        </div>
-                        <div className="text-center p-4 border rounded-lg">
-                          <div className="text-xl font-semibold">Claude 3</div>
-                          <div className="text-2xl font-bold text-blue-600">
-                            {formatNumber(stats.estimated_tokens_claude3)}
-                          </div>
-                          <div className="text-sm text-muted-foreground">tokens</div>
-                        </div>
-                        <div className="text-center p-4 border rounded-lg">
-                          <div className="text-xl font-semibold">Gemini</div>
-                          <div className="text-2xl font-bold text-purple-600">
-                            {formatNumber(stats.estimated_tokens_gemini)}
-                          </div>
-                          <div className="text-sm text-muted-foreground">tokens</div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
-
-              {/* Sidebar */}
-              <div className="space-y-6">
-                {/* Repository Info */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Repository Info</CardTitle>
-                  </CardHeader>
                   <CardContent className="space-y-3">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Primary Language</span>
-                      <span className="font-medium">{repository.language || 'Unknown'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">License</span>
-                      <span className="font-medium">{repository.license_name || 'None'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Size</span>
-                      <span className="font-medium">{repository.size_kb} KB</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Default Branch</span>
-                      <span className="font-medium">{repository.default_branch}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Open Issues</span>
-                      <span className="font-medium">{repository.open_issues_count}</span>
-                    </div>
+                    {Object.entries(languages)
+                      .sort(([,a], [,b]) => b - a)
+                      .slice(0, 5)
+                      .map(([language, lines]) => {
+                        const percentage = (lines / totalLanguageLines) * 100;
+                        return (
+                          <div key={language}>
+                            <div className="flex justify-between text-sm mb-1">
+                              <span>{language}</span>
+                              <span>{percentage.toFixed(1)}%</span>
+                            </div>
+                            <Progress value={percentage} className="h-2" />
+                          </div>
+                        );
+                      })}
                   </CardContent>
                 </Card>
-
-                {/* Language Breakdown */}
-                {Object.keys(languages).length > 0 && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <PieChart className="w-5 h-5" />
-                        Languages
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      {Object.entries(languages)
-                        .sort(([,a], [,b]) => b - a)
-                        .slice(0, 5)
-                        .map(([language, lines]) => {
-                          const percentage = (lines / totalLanguageLines) * 100;
-                          return (
-                            <div key={language}>
-                              <div className="flex justify-between text-sm mb-1">
-                                <span>{language}</span>
-                                <span>{percentage.toFixed(1)}%</span>
-                              </div>
-                              <Progress value={percentage} className="h-2" />
-                            </div>
-                          );
-                        })}
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
+              )}
             </div>
           </TabsContent>
 
           <TabsContent value="statistics">
             {stats ? (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="space-y-6">
+                {/* Full Width Code Metrics */}
                 <Card>
                   <CardHeader>
                     <CardTitle>Code Metrics</CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <div className="text-2xl font-bold">{formatNumber(stats.total_lines)}</div>
+                  <CardContent>
+                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-blue-600">{formatNumber(stats.total_lines)}</div>
                         <div className="text-sm text-muted-foreground">Total Lines</div>
                       </div>
-                      <div>
-                        <div className="text-2xl font-bold">{formatNumber(stats.total_characters)}</div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-green-600">{formatNumber(stats.total_characters)}</div>
                         <div className="text-sm text-muted-foreground">Characters</div>
                       </div>
-                      <div>
-                        <div className="text-2xl font-bold">{stats.file_count}</div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-purple-600">{stats.file_count}</div>
                         <div className="text-sm text-muted-foreground">Files</div>
                       </div>
-                      <div>
-                        <div className="text-2xl font-bold">{stats.directory_count}</div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-orange-600">{stats.directory_count}</div>
                         <div className="text-sm text-muted-foreground">Directories</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-cyan-600">{formatBytes(stats.storage_size_bytes)}</div>
+                        <div className="text-sm text-muted-foreground">Storage Size</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-pink-600">{formatDate(stats.calculated_at)}</div>
+                        <div className="text-sm text-muted-foreground">Analyzed</div>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
 
+                {/* Full Width Quality Metrics */}
                 <Card>
                   <CardHeader>
                     <CardTitle>Quality Metrics</CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div>
-                      <div className="flex justify-between mb-2">
-                        <span>Complexity Score</span>
-                        <span className="font-medium">{stats.complexity_score.toFixed(1)}/10</span>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <div className="flex justify-between mb-2">
+                          <span>Complexity Score</span>
+                          <span className="font-medium">{stats.complexity_score.toFixed(1)}/10</span>
+                        </div>
+                        <Progress value={stats.complexity_score * 10} className="h-3" />
+                        <p className="text-xs text-muted-foreground mt-1">Lower is better for maintainability</p>
                       </div>
-                      <Progress value={stats.complexity_score * 10} className="h-2" />
-                    </div>
-                    <div>
-                      <div className="flex justify-between mb-2">
-                        <span>Maintainability Index</span>
-                        <span className="font-medium">{stats.maintainability_index.toFixed(1)}/100</span>
+                      <div>
+                        <div className="flex justify-between mb-2">
+                          <span>Maintainability Index</span>
+                          <span className="font-medium">{stats.maintainability_index.toFixed(1)}/100</span>
+                        </div>
+                        <Progress value={stats.maintainability_index} className="h-3" />
+                        <p className="text-xs text-muted-foreground mt-1">Higher is better for long-term maintenance</p>
                       </div>
-                      <Progress value={stats.maintainability_index} className="h-2" />
                     </div>
                   </CardContent>
                 </Card>
 
+                {/* Full Width Largest Files */}
                 {stats.largest_files.length > 0 && (
-                  <Card className="lg:col-span-2">
+                  <Card>
                     <CardHeader>
                       <CardTitle>Largest Files</CardTitle>
+                      <CardDescription>Files that contribute most to the repository size</CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <div className="space-y-2">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {stats.largest_files.map((file, index) => (
-                          <div key={index} className="flex justify-between items-center p-2 border rounded">
-                            <span className="font-mono text-sm truncate">{file.path}</span>
-                            <span className="text-sm text-muted-foreground">{formatBytes(file.size)}</span>
+                          <div key={index} className="flex justify-between items-center p-3 border rounded-lg hover:bg-muted/50">
+                            <span className="font-mono text-sm truncate flex-1 mr-4">{file.path}</span>
+                            <span className="text-sm font-medium text-muted-foreground">{formatBytes(file.size)}</span>
                           </div>
                         ))}
                       </div>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Search, Filter, Star, GitFork, Eye, Calendar, FileText, BarChart3, Heart, ExternalLink } from 'lucide-react';
+import { Search, Filter, Star, GitFork, Calendar, FileText, BarChart3, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -222,75 +222,73 @@ export default function SearchPage() {
               </p>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-3">
               {searchResults.repositories.map((repo) => (
                 <Card key={repo.id} className="hover:shadow-lg transition-shadow">
-                  <CardContent className="p-6">
-                    <div className="flex justify-between items-start mb-4">
+                  <CardContent className="p-4">
+                    <div className="flex justify-between items-start">
                       <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Link 
-                            href={`/repository/${repo.full_name.replace('/', '-')}`}
-                            className="text-xl font-semibold text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-                          >
-                            {repo.full_name}
-                          </Link>
-                          <a
-                            href={repo.html_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-gray-400 hover:text-gray-600"
-                          >
-                            <ExternalLink className="w-4 h-4" />
-                          </a>
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-2">
+                          <div className="flex items-center gap-2">
+                            <Link 
+                              href={`/repository/${repo.full_name.replace('/', '-')}`}
+                              className="text-lg font-semibold text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                            >
+                              {repo.full_name}
+                            </Link>
+                            <a
+                              href={repo.html_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-gray-400 hover:text-gray-600"
+                            >
+                              <ExternalLink className="w-4 h-4" />
+                            </a>
+                          </div>
+                          
+                          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                            <div className="flex items-center gap-1">
+                              <Star className="w-3 h-3" />
+                              {formatNumber(repo.stargazers_count)}
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <GitFork className="w-3 h-3" />
+                              {formatNumber(repo.forks_count)}
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Calendar className="w-3 h-3" />
+                              {formatDate(repo.updated_at)}
+                            </div>
+                          </div>
                         </div>
                         
-                        <p className="text-muted-foreground mb-3 line-clamp-2">
+                        <p className="text-muted-foreground text-sm mb-2 line-clamp-2">
                           {repo.description || 'No description available'}
                         </p>
 
-                        <div className="flex flex-wrap gap-2 mb-3">
+                        <div className="flex flex-wrap gap-1">
                           {repo.language && (
-                            <Badge variant="secondary">{repo.language}</Badge>
+                            <Badge variant="secondary" className="text-xs">{repo.language}</Badge>
                           )}
-                          {repo.topics?.slice(0, 3).map((topic) => (
-                            <Badge key={topic} variant="outline">
+                          {repo.topics?.slice(0, 2).map((topic) => (
+                            <Badge key={topic} variant="outline" className="text-xs">
                               {topic}
                             </Badge>
                           ))}
-                          {repo.topics?.length > 3 && (
-                            <Badge variant="outline">
-                              +{repo.topics.length - 3} more
+                          {repo.topics?.length > 2 && (
+                            <Badge variant="outline" className="text-xs">
+                              +{repo.topics.length - 2}
                             </Badge>
                           )}
                         </div>
-
-                        <div className="flex items-center gap-6 text-sm text-muted-foreground">
-                          <div className="flex items-center gap-1">
-                            <Star className="w-4 h-4" />
-                            {formatNumber(repo.stargazers_count)}
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <GitFork className="w-4 h-4" />
-                            {formatNumber(repo.forks_count)}
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Eye className="w-4 h-4" />
-                            {formatNumber(repo.watchers_count)}
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Calendar className="w-4 h-4" />
-                            Updated {formatDate(repo.updated_at)}
-                          </div>
-                        </div>
                       </div>
 
-                      <div className="flex flex-col gap-2 ml-4">
+                      <div className="flex flex-col gap-2 ml-4 shrink-0">
                         {repo.analysis?.statistics && repo.analysis.statistics.length > 0 ? (
                           <Link href={`/repository/${repo.full_name.replace('/', '-')}`}>
                             <Button variant="outline" size="sm">
                               <BarChart3 className="w-4 h-4 mr-1" />
-                              View Analysis
+                              View
                             </Button>
                           </Link>
                         ) : (
@@ -306,7 +304,7 @@ export default function SearchPage() {
                         
                         {repo.analysis?.last_analyzed && (
                           <p className="text-xs text-muted-foreground text-center">
-                            Analyzed {formatDate(repo.analysis.last_analyzed)}
+                            {formatDate(repo.analysis.last_analyzed)}
                           </p>
                         )}
                       </div>
