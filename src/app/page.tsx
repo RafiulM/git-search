@@ -1,306 +1,473 @@
 "use client";
 
-// Authentication removed
-import { useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
-  Search,
-  GitBranch,
-  BarChart3,
-  FileText,
   Zap,
   Database,
-  Star,
-  GitFork,
-  Calendar,
-  ExternalLink,
+  Shield,
+  Palette,
+  Code2,
+  Github,
+  CheckCircle,
+  Circle,
+  Rocket,
+  Sparkles,
+  FileText,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useFeaturedRepositories } from "@/hooks/use-featured-repositories";
+import SetupGuide from "@/components/setup-guide";
+import { checkEnvironmentVariables } from "@/lib/env-check";
+import Chat from "@/components/chat";
+import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/nextjs";
 
 export default function Home() {
-  const [searchQuery, setSearchQuery] = useState('');
-  const router = useRouter();
-  const { data: featuredRepositories, isLoading, error } = useFeaturedRepositories(4);
+  const [envStatus, setEnvStatus] = useState({
+    clerk: false,
+    supabase: false,
+    ai: false,
+    allConfigured: false,
+  });
+  const [showSetup, setShowSetup] = useState(false);
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      router.push(`/search?q=${encodeURIComponent(searchQuery)}`);
-    }
-  };
-
-  const formatNumber = (num: number) => {
-    if (num >= 1000000) {
-      return (num / 1000000).toFixed(1) + 'M';
-    }
-    if (num >= 1000) {
-      return (num / 1000).toFixed(1) + 'k';
-    }
-    return num.toString();
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  };
-
-  const formatBytes = (bytes: number) => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
+  useEffect(() => {
+    const status = checkEnvironmentVariables();
+    setEnvStatus(status);
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-cyan-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-      {/* Hero Section */}
-      <div className="text-center py-12 sm:py-16 relative px-4">
-        <div className="absolute top-4 right-4 sm:top-6 sm:right-6">
-          <div className="flex items-center gap-2 sm:gap-3">
+      {/* Navigation Bar */}
+      <nav className="p-4 sm:p-6">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-gradient-to-br from-blue-600 to-purple-600">
+              <Code2 className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold">CodeGuide Starter Kit</h1>
+              <p className="text-sm text-muted-foreground">Lite v2</p>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-3">
             <ThemeToggle />
+            <SignedOut>
+              <SignInButton>
+                <Button variant="outline">Sign In</Button>
+              </SignInButton>
+            </SignedOut>
+            <SignedIn>
+              <UserButton />
+            </SignedIn>
           </div>
         </div>
+      </nav>
 
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 mb-4">
-          <GitBranch className="w-12 h-12 sm:w-16 sm:h-16 text-blue-600" />
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-blue-400 bg-clip-text text-transparent">
-            Git Search
-          </h1>
-        </div>
-        <p className="text-lg sm:text-xl text-muted-foreground max-w-3xl mx-auto px-4 mb-8">
-          The ultimate GitHub repository directory with AI-focused statistics and comprehensive analysis
-        </p>
-
-        {/* Search Bar */}
-        <form onSubmit={handleSearch} className="max-w-2xl mx-auto mb-8">
-          <div className="flex gap-2">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <Input
-                type="text"
-                placeholder="Search repositories (e.g., react typescript, machine learning python)"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 h-12 text-base"
-              />
+      {/* Hero Section */}
+      <div className="text-center py-16 sm:py-24 px-4">
+        <div className="max-w-4xl mx-auto">
+          <div className="flex items-center justify-center gap-4 mb-6">
+            <div className="relative">
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full blur-lg opacity-25 animate-pulse"></div>
+              <div className="relative p-4 rounded-full bg-gradient-to-br from-blue-600 to-purple-600">
+                <Rocket className="w-12 h-12 text-white" />
+              </div>
             </div>
-            <Button type="submit" size="lg" className="h-12 px-8 bg-purple-600 hover:bg-purple-700 text-white">
-              Search
+          </div>
+          
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold mb-6">
+            <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 bg-clip-text text-transparent">
+              Modern Web Development
+            </span>
+            <br />
+            <span className="text-foreground">Made Simple</span>
+          </h1>
+          
+          <p className="text-xl text-muted-foreground max-w-3xl mx-auto mb-8 leading-relaxed">
+            A production-ready Next.js starter with authentication, database, AI integration, 
+            and beautiful UI components. Get from zero to shipped in minutes, not hours.
+          </p>
+
+          <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
+            <SignedOut>
+              <SignInButton>
+                <Button size="lg" className="btn-gradient btn-hover-glow focus-ring px-8" aria-label="Sign up to get started with CodeGuide Starter Kit">
+                  <Sparkles className="w-5 h-5 mr-2" aria-hidden="true" />
+                  Get Started Free
+                </Button>
+              </SignInButton>
+            </SignedOut>
+            <SignedIn>
+              <Link href="/dashboard">
+                <Button size="lg" className="btn-gradient btn-hover-glow focus-ring px-8" aria-label="Go to your dashboard">
+                  <Sparkles className="w-5 h-5 mr-2" aria-hidden="true" />
+                  Go to Dashboard
+                </Button>
+              </Link>
+            </SignedIn>
+            
+            <Button 
+              size="lg" 
+              variant="outline" 
+              onClick={() => setShowSetup(!showSetup)}
+              className="focus-ring"
+              aria-expanded={showSetup}
+              aria-controls="setup-guide"
+            >
+              <FileText className="w-5 h-5 mr-2" aria-hidden="true" />
+              {showSetup ? 'Hide Setup' : 'View Setup Guide'}
+            </Button>
+            
+            <Button size="lg" variant="ghost" asChild className="focus-ring">
+              <a 
+                href="https://github.com" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                aria-label="View CodeGuide Starter Kit on GitHub (opens in new tab)"
+              >
+                <Github className="w-5 h-5 mr-2" aria-hidden="true" />
+                View on GitHub
+              </a>
             </Button>
           </div>
-        </form>
 
+          {/* Environment Status Indicators */}
+          <div className="flex flex-wrap justify-center gap-3 sm:gap-4 mb-8" role="status" aria-label="Service status indicators">
+            <div className="flex items-center gap-2 px-3 py-2 rounded-full glass transition-all duration-300 hover:scale-105">
+              {envStatus.clerk ? (
+                <CheckCircle className="w-4 h-4 text-green-500" aria-hidden="true" />
+              ) : (
+                <Circle className="w-4 h-4 text-gray-400" aria-hidden="true" />
+              )}
+              <span className="text-sm font-medium">
+                Authentication
+                <span className="sr-only">
+                  {envStatus.clerk ? 'configured' : 'not configured'}
+                </span>
+              </span>
+            </div>
+            
+            <div className="flex items-center gap-2 px-3 py-2 rounded-full glass transition-all duration-300 hover:scale-105">
+              {envStatus.supabase ? (
+                <CheckCircle className="w-4 h-4 text-green-500" aria-hidden="true" />
+              ) : (
+                <Circle className="w-4 h-4 text-gray-400" aria-hidden="true" />
+              )}
+              <span className="text-sm font-medium">
+                Database
+                <span className="sr-only">
+                  {envStatus.supabase ? 'configured' : 'not configured'}
+                </span>
+              </span>
+            </div>
+            
+            <div className="flex items-center gap-2 px-3 py-2 rounded-full glass transition-all duration-300 hover:scale-105">
+              {envStatus.ai ? (
+                <CheckCircle className="w-4 h-4 text-green-500" aria-hidden="true" />
+              ) : (
+                <Circle className="w-4 h-4 text-gray-400" aria-hidden="true" />
+              )}
+              <span className="text-sm font-medium">
+                AI Integration
+                <span className="sr-only">
+                  {envStatus.ai ? 'configured' : 'not configured'}
+                </span>
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <main className="container mx-auto px-4 sm:px-6 pb-12 sm:pb-8 max-w-5xl">
-        {/* Featured Repositories - Moved to Top */}
-        <div className="mb-16">
-          <div className="text-center mb-8">
-            <h2 className="text-2xl font-bold mb-2">Featured Repositories</h2>
-            <p className="text-muted-foreground">
-              Popular repositories with comprehensive AI-focused analysis
+      {/* Setup Guide */}
+      {showSetup && (
+        <section id="setup-guide" className="py-12 px-4" aria-labelledby="setup-heading">
+          <SetupGuide envStatus={envStatus} />
+        </section>
+      )}
+
+      <main className="container mx-auto px-4 sm:px-6 pb-12 max-w-7xl">
+
+        {/* Feature Showcase */}
+        <section className="mb-20" aria-labelledby="features-heading">
+          <div className="text-center mb-12">
+            <h2 id="features-heading" className="text-3xl font-bold mb-4">Everything You Need to Build Fast</h2>
+            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+              Batteries-included starter kit with all the modern tools and integrations
             </p>
           </div>
           
-          <div className="space-y-4">
-            {isLoading ? (
-              // Loading skeletons
-              Array.from({ length: 4 }).map((_, index) => (
-                <Card key={index} className="hover:shadow-lg transition-shadow">
-                  <CardContent className="p-4">
-                    <div className="space-y-3">
-                      <Skeleton className="h-6 w-2/3" />
-                      <Skeleton className="h-4 w-full" />
-                      <div className="flex gap-2">
-                        <Skeleton className="h-5 w-16" />
-                        <Skeleton className="h-5 w-16" />
-                        <Skeleton className="h-5 w-16" />
-                      </div>
-                      <div className="grid grid-cols-4 gap-3 p-3">
-                        {Array.from({ length: 4 }).map((_, i) => (
-                          <Skeleton key={i} className="h-12 w-full" />
-                        ))}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            ) : error ? (
-              // Error state
-              <Card>
-                <CardContent className="text-center py-8">
-                  <p className="text-muted-foreground">
-                    Unable to load featured repositories. Please try again later.
-                  </p>
-                </CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8" role="list">
+            {/* Authentication */}
+            <Card role="listitem" className="group hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 border-0 bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-blue-900/20 dark:to-indigo-900/40 animate-fade-in-up animate-delay-100">
+              <CardHeader>
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-2 rounded-lg bg-gradient-to-br from-blue-600 to-blue-700 group-hover:from-blue-500 group-hover:to-blue-600 transition-colors">
+                    <Shield className="w-6 h-6 text-white" />
+                  </div>
+                  <CardTitle className="text-xl">Authentication</CardTitle>
+                </div>
+                <p className="text-muted-foreground">
+                  Complete user management with Clerk integration
+                </p>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-500" />
+                    <span>Sign-up & Sign-in flows</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-500" />
+                    <span>Protected routes middleware</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-500" />
+                    <span>User profile management</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Database */}
+            <Card role="listitem" className="group hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 border-0 bg-gradient-to-br from-green-50 to-emerald-100 dark:from-green-900/20 dark:to-emerald-900/40 animate-fade-in-up animate-delay-200">
+              <CardHeader>
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-2 rounded-lg bg-gradient-to-br from-green-600 to-green-700 group-hover:from-green-500 group-hover:to-green-600 transition-colors">
+                    <Database className="w-6 h-6 text-white" />
+                  </div>
+                  <CardTitle className="text-xl">Database</CardTitle>
+                </div>
+                <p className="text-muted-foreground">
+                  Supabase PostgreSQL with real-time capabilities
+                </p>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-500" />
+                    <span>Row Level Security</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-500" />
+                    <span>Real-time subscriptions</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-500" />
+                    <span>Type-safe queries</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* AI Integration */}
+            <Card role="listitem" className="group hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 border-0 bg-gradient-to-br from-purple-50 to-pink-100 dark:from-purple-900/20 dark:to-pink-900/40 animate-fade-in-up animate-delay-300">
+              <CardHeader>
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-2 rounded-lg bg-gradient-to-br from-purple-600 to-pink-600 group-hover:from-purple-500 group-hover:to-pink-500 transition-colors">
+                    <Zap className="w-6 h-6 text-white" />
+                  </div>
+                  <CardTitle className="text-xl">AI Integration</CardTitle>
+                </div>
+                <p className="text-muted-foreground">
+                  Vercel AI SDK with OpenAI and Claude support
+                </p>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-500" />
+                    <span>Streaming chat interface</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-500" />
+                    <span>Multiple AI providers</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-500" />
+                    <span>Real-time responses</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* UI Components */}
+            <Card role="listitem" className="group hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 border-0 bg-gradient-to-br from-orange-50 to-red-100 dark:from-orange-900/20 dark:to-red-900/40 animate-fade-in-up animate-delay-400">
+              <CardHeader>
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-2 rounded-lg bg-gradient-to-br from-orange-600 to-red-600 group-hover:from-orange-500 group-hover:to-red-500 transition-colors">
+                    <Palette className="w-6 h-6 text-white" />
+                  </div>
+                  <CardTitle className="text-xl">UI Components</CardTitle>
+                </div>
+                <p className="text-muted-foreground">
+                  40+ shadcn/ui components with dark mode
+                </p>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-500" />
+                    <span>Accessible components</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-500" />
+                    <span>Dark/light theme toggle</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-500" />
+                    <span>TailwindCSS v4</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* TypeScript */}
+            <Card role="listitem" className="group hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 border-0 bg-gradient-to-br from-cyan-50 to-blue-100 dark:from-cyan-900/20 dark:to-blue-900/40 animate-fade-in-up animate-delay-500">
+              <CardHeader>
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-2 rounded-lg bg-gradient-to-br from-cyan-600 to-blue-600 group-hover:from-cyan-500 group-hover:to-blue-500 transition-colors">
+                    <Code2 className="w-6 h-6 text-white" />
+                  </div>
+                  <CardTitle className="text-xl">TypeScript</CardTitle>
+                </div>
+                <p className="text-muted-foreground">
+                  Type-safe development with strict mode
+                </p>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-500" />
+                    <span>Strict mode enabled</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-500" />
+                    <span>Path aliases configured</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-500" />
+                    <span>Type-safe API routes</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Developer Experience */}
+            <Card role="listitem" className="group hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 border-0 bg-gradient-to-br from-yellow-50 to-orange-100 dark:from-yellow-900/20 dark:to-orange-900/40 animate-fade-in-up animate-delay-300">
+              <CardHeader>
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-2 rounded-lg bg-gradient-to-br from-yellow-600 to-orange-600 group-hover:from-yellow-500 group-hover:to-orange-500 transition-colors">
+                    <Sparkles className="w-6 h-6 text-white" />
+                  </div>
+                  <CardTitle className="text-xl">Developer Experience</CardTitle>
+                </div>
+                <p className="text-muted-foreground">
+                  Optimized for productivity and maintainability
+                </p>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-500" />
+                    <span>Hot reload & fast refresh</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-500" />
+                    <span>ESLint & Prettier</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-500" />
+                    <span>Docker dev container</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </section>
+
+        {/* AI Chat Demo */}
+        <SignedIn>
+          <section className="mb-20" aria-labelledby="chat-demo-heading">
+            <div className="text-center mb-8">
+              <h2 id="chat-demo-heading" className="text-3xl font-bold mb-4">Try the AI Chat</h2>
+              <p className="text-xl text-muted-foreground">
+                Experience the integrated AI chat powered by Vercel AI SDK
+              </p>
+            </div>
+            
+            <div className="max-w-4xl mx-auto">
+              <Card className="p-4 sm:p-6 glass-card" role="region" aria-label="AI Chat Interface">
+                <Chat />
               </Card>
-            ) : featuredRepositories && featuredRepositories.length > 0 ? (
-              // Real data
-              featuredRepositories.map((repo) => (
-                <Card key={repo.id} className="hover:shadow-lg transition-shadow">
-                  <CardContent className="p-4">
-                    <div className="flex-1">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
-                        <div className="flex items-center gap-2">
-                          <Link 
-                            href={`/repository/${repo.name.replace('/', '-')}`}
-                            className="text-lg font-semibold text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-                          >
-                            {repo.name}
-                          </Link>
-                          <a
-                            href={repo.repo_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-gray-400 hover:text-gray-600"
-                          >
-                            <ExternalLink className="w-4 h-4" />
-                          </a>
-                        </div>
+            </div>
+          </section>
+        </SignedIn>
 
-                        <div className="flex items-center gap-3">
-                          <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                            <div className="flex items-center gap-1">
-                              <Calendar className="w-3 h-3" />
-                              {formatDate(repo.updated_at)}
-                            </div>
-                          </div>
-                          <Link href={`/repository/${repo.name.replace('/', '-')}`}>
-                            <Button variant="outline" size="sm">
-                              <BarChart3 className="w-4 h-4 mr-1" />
-                              View Analysis
-                            </Button>
-                          </Link>
-                        </div>
-                      </div>
-                    
-                      <p className="text-muted-foreground text-sm mb-2 line-clamp-2">
-                        {repo.description || 'No description available'}
-                      </p>
-
-                      <div className="flex flex-wrap gap-1 mb-3">
-                        {repo.author && (
-                          <Badge variant="secondary" className="text-xs">
-                            {repo.author}
-                          </Badge>
-                        )}
-                        {repo.branch && (
-                          <Badge variant="outline" className="text-xs">
-                            {repo.branch}
-                          </Badge>
-                        )}
-                      </div>
-
-                      {/* Statistics with Icons */}
-                      <div className="grid grid-cols-4 gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded">
-                        <div className="flex items-center gap-2">
-                          <FileText className="w-4 h-4 text-blue-600" />
-                          <div>
-                            <div className="text-sm font-semibold text-slate-600">
-                              {formatNumber(repo.stats?.total_lines || 0)}
-                            </div>
-                            <div className="text-xs text-muted-foreground">Lines</div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Database className="w-4 h-4 text-blue-600" />
-                          <div>
-                            <div className="text-sm font-semibold text-slate-600">
-                              {formatNumber(repo.stats?.total_files_found || 0)}
-                            </div>
-                            <div className="text-xs text-muted-foreground">Files</div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <BarChart3 className="w-4 h-4 text-blue-600" />
-                          <div>
-                            <div className="text-sm font-semibold text-slate-600">
-                              {formatBytes(repo.stats?.estimated_size_bytes || 0)}
-                            </div>
-                            <div className="text-xs text-muted-foreground">Size</div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Zap className="w-4 h-4 text-blue-600" />
-                          <div>
-                            <div className="text-sm font-semibold text-slate-600">
-                              {formatNumber(repo.stats?.estimated_tokens || 0)}
-                            </div>
-                            <div className="text-xs text-muted-foreground">Tokens</div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            ) : (
-              // No data state
-              <Card>
-                <CardContent className="text-center py-8">
-                  <p className="text-muted-foreground">
-                    No featured repositories available. Start by analyzing some repositories!
-                  </p>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-
-          <div className="text-center mt-8">
-            <Link href="/search">
-              <Button size="lg">
-                <Search className="w-4 h-4 mr-2" />
-                Explore More Repositories
-              </Button>
-            </Link>
-          </div>
-        </div>
-
-        {/* Feature Cards */}
-        <div className="mb-12">
-          <div className="text-center mb-8">
-            <h2 className="text-2xl font-bold mb-2">Platform Features</h2>
-            <p className="text-muted-foreground">Advanced insights and analysis tools for GitHub repositories</p>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-4xl mx-auto">
-            <Card className="text-center p-4 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/10 dark:to-indigo-900/10 border-blue-200 dark:border-blue-800">
-              <BarChart3 className="w-8 h-8 text-blue-600 mx-auto mb-2" />
-              <h3 className="font-semibold mb-1">Code Statistics</h3>
-              <p className="text-sm text-muted-foreground">Lines of code, file counts, and complexity metrics</p>
-            </Card>
+        {/* Quick Start Section */}
+        <section className="text-center py-16" aria-labelledby="quick-start-heading">
+          <h2 id="quick-start-heading" className="text-3xl font-bold mb-4">Ready to Build Something Amazing?</h2>
+          <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
+            Clone the repository, add your environment variables, and start building your next project in minutes.
+          </p>
+          
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Button size="lg" asChild className="btn-gradient btn-hover-glow focus-ring px-8">
+              <a 
+                href="https://github.com" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                aria-label="Clone CodeGuide Starter Kit repository on GitHub (opens in new tab)"
+              >
+                <Github className="w-5 h-5 mr-2" aria-hidden="true" />
+                Clone Repository
+              </a>
+            </Button>
             
-            <Card className="text-center p-4 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/10 dark:to-emerald-900/10 border-green-200 dark:border-green-800">
-              <Zap className="w-8 h-8 text-green-600 mx-auto mb-2" />
-              <h3 className="font-semibold mb-1">AI Token Estimates</h3>
-              <p className="text-sm text-muted-foreground">Estimates for GPT-4, Claude, and Gemini models</p>
-            </Card>
-            
-            <Card className="text-center p-4 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/10 dark:to-pink-900/10 border-purple-200 dark:border-purple-800">
-              <FileText className="w-8 h-8 text-purple-600 mx-auto mb-2" />
-              <h3 className="font-semibold mb-1">Documentation</h3>
-              <p className="text-sm text-muted-foreground">Auto-generated docs and architecture diagrams</p>
-            </Card>
-            
-            <Card className="text-center p-4 bg-gradient-to-br from-orange-50 to-red-50 dark:from-orange-900/10 dark:to-red-900/10 border-orange-200 dark:border-orange-800">
-              <Database className="w-8 h-8 text-orange-600 mx-auto mb-2" />
-              <h3 className="font-semibold mb-1">Tech Stack Analysis</h3>
-              <p className="text-sm text-muted-foreground">Language breakdown and technology insights</p>
-            </Card>
+            <Button 
+              size="lg" 
+              variant="outline" 
+              onClick={() => setShowSetup(true)}
+              className="focus-ring"
+              aria-label="View setup instructions"
+            >
+              <FileText className="w-5 h-5 mr-2" aria-hidden="true" />
+              Setup Instructions
+            </Button>
           </div>
-        </div>
+        </section>
 
       </main>
+      
+      {/* Footer */}
+      <footer className="border-t bg-muted/50 py-12">
+        <div className="container mx-auto px-4 text-center">
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <div className="p-2 rounded-lg bg-gradient-to-br from-blue-600 to-purple-600">
+              <Code2 className="w-5 h-5 text-white" />
+            </div>
+            <span className="font-semibold">CodeGuide Starter Kit Lite v2</span>
+          </div>
+          
+          <p className="text-muted-foreground mb-4">
+            Built with Next.js, TypeScript, Tailwind CSS, shadcn/ui, Clerk, Supabase, and Vercel AI SDK
+          </p>
+          
+          <div className="flex items-center justify-center gap-6 text-sm text-muted-foreground">
+            <a href="#" className="hover:text-foreground transition-colors">
+              Documentation
+            </a>
+            <a href="#" className="hover:text-foreground transition-colors">
+              GitHub
+            </a>
+            <a href="#" className="hover:text-foreground transition-colors">
+              Examples
+            </a>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
