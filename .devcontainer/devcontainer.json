@@ -1,5 +1,5 @@
 {
-  "name": "CodeGuide Starter",
+  "name": "Git Search",
   "build": {
     "dockerfile": "Dockerfile",
     "args": {

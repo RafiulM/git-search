@@ -1,3 +1,5 @@
+.vscode
+
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
@@ -9,6 +11,10 @@
 !.yarn/plugins
 !.yarn/releases
 !.yarn/versions
+
+# pnpm
+.pnpm-store/
+.pnpm-state/
 
 # testing
 /coverage
@@ -31,7 +37,13 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # env files (can opt-in for committing if needed)
-.env*
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+# Allow .env.example files to be committed
+!.env.example
 
 # vercel
 .vercel
@@ -44,3 +56,15 @@ next-env.d.ts
 /.clerk/
 
 .temp
+
+# python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pyw
+*.pyz
+*.pywz
+*.pyzw
+*.pyzwz
+.venv/

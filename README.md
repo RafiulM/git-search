@@ -1,11 +1,22 @@
-[![CodeGuide](/codeguide-backdrop.svg)](https://codeguide.dev)
+[![Git-Search](/codeguide-backdrop.svg)](#)
 
-# CodeGuide Starter Kit Lite v2
+# Git-Search Monorepo
 
-A modern web application starter template built with Next.js 15, featuring authentication, database integration, AI capabilities, and dark mode support.
+A modern monorepo containing the Git-Search application stack with Next.js frontend and FastAPI backend.
+
+## Structure
+
+```
+├── apps/
+│   ├── web/          # Next.js frontend application
+│   └── api/          # FastAPI backend application
+├── packages/         # Shared packages (future use)
+└── documentation/    # Project documentation
+```
 
 ## Tech Stack
 
+### Frontend (`apps/web`)
 - **Framework:** [Next.js 15](https://nextjs.org/) (App Router)
 - **Language:** TypeScript
 - **Authentication:** [Clerk](https://clerk.com/)
@@ -15,51 +26,76 @@ A modern web application starter template built with Next.js 15, featuring authe
 - **AI Integration:** [Vercel AI SDK](https://sdk.vercel.ai/)
 - **Theme System:** [next-themes](https://github.com/pacocoursey/next-themes)
 
+### Backend (`apps/api`)
+- **Framework:** [FastAPI](https://fastapi.tiangolo.com/)
+- **Language:** Python 3.8+
+- **Database:** [Supabase](https://supabase.com/) / PostgreSQL
+- **Authentication:** JWT with integration to Clerk
+- **Validation:** [Pydantic](https://pydantic.dev/)
+
 ## Prerequisites
 
 Before you begin, ensure you have the following:
-- Node.js 18+ installed
+- Node.js 18+ and npm
+- Python 3.8+ and pip
 - A [Clerk](https://clerk.com/) account for authentication
 - A [Supabase](https://supabase.com/) account for database
 - Optional: [OpenAI](https://platform.openai.com/) or [Anthropic](https://console.anthropic.com/) API key for AI features
-- Generated project documents from [CodeGuide](https://codeguide.dev/) for best development experience
+- Generated project documents for best development experience
 
 ## Getting Started
+
+### Installation
 
 1. **Clone the repository**
    ```bash
    git clone <repository-url>
-   cd codeguide-starter-kit-lite-v2
+   cd git-search-monorepo
    ```
 
 2. **Install dependencies**
    ```bash
    npm install
-   # or
-   yarn install
-   # or
-   pnpm install
    ```
 
-3. **Environment Variables Setup**
-   - Copy the `.env.example` file to `.env.local`:
-     ```bash
-     cp .env.example .env.local
-     ```
-   - Fill in the environment variables in `.env.local` (see Configuration section below)
+### Development
 
-4. **Start the development server**
+3. **Start the web application**
    ```bash
-   npm run dev
-   # or
-   yarn dev
-   # or
-   pnpm dev
+   npm run dev:web
+   ```
+   The web app will be available at http://localhost:3000
+
+4. **Start the API server** (in a new terminal)
+   ```bash
+   npm run dev:api
+   ```
+   The API will be available at http://localhost:8000
+
+### Environment Configuration
+
+5. **Web app environment variables**
+   ```bash
+   cp apps/web/.env.example apps/web/.env.local
+   # Edit apps/web/.env.local with your values
    ```
 
-5. **Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.**
+6. **API environment variables**
+   ```bash
+   cp apps/api/.env.example apps/api/.env
+   # Edit apps/api/.env with your values
+   ```
 
-The homepage includes a setup dashboard with direct links to configure each service.
+### Available Scripts
+
+- `npm run dev` - Start the web application (default)
+- `npm run dev:web` - Start the Next.js web application
+- `npm run dev:api` - Start the FastAPI backend
+- `npm run build` - Build the web application
+- `npm run build:web` - Build the Next.js application  
+- `npm run build:api` - Build the FastAPI application
+- `npm run lint` - Run ESLint on the web application
+- `npm run type-check` - Run TypeScript type checking
 
 ## Configuration
 
@@ -116,7 +152,7 @@ ANTHROPIC_API_KEY=your_anthropic_api_key
 ## Project Structure
 
 ```
-codeguide-starter-kit-lite-v2/
+git-search-monorepo/
 ├── src/
 │   ├── app/                    # Next.js app router pages
 │   │   ├── api/chat/          # AI chat API endpoint
@@ -152,7 +188,7 @@ This starter includes modern Clerk + Supabase integration:
 
 ## AI Coding Agent Integration
 
-This starter is optimized for AI coding agents:
+This project is optimized for development:
 
 - **`CLAUDE.md`** - Comprehensive project context and patterns
 - **Setup guides** with detailed integration steps
@@ -162,24 +198,18 @@ This starter is optimized for AI coding agents:
 
 ## Documentation Setup
 
-To implement the generated documentation from CodeGuide:
+Project documentation is available in the `documentation/` directory:
 
-1. Create a `documentation` folder in the root directory:
-   ```bash
-   mkdir documentation
-   ```
+```bash
+# Example structure
+documentation/
+├── project_requirements_document.md             
+├── app_flow_document.md
+├── frontend_guideline_document.md
+└── backend_structure_document.md
+```
 
-2. Place all generated markdown files from CodeGuide in this directory:
-   ```bash
-   # Example structure
-   documentation/
-   ├── project_requirements_document.md             
-   ├── app_flow_document.md
-   ├── frontend_guideline_document.md
-   └── backend_structure_document.md
-   ```
-
-3. These documentation files will be automatically tracked by git and can be used as a reference for your project's features and implementation details.
+These documentation files can be used as a reference for your project's features and implementation details.
 
 ## Contributing
 
