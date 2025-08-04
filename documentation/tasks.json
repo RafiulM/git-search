@@ -1,0 +1,65 @@
+{
+  "tasks": [
+    {
+      "id": 1,
+      "title": "Initialize Next.js Project with Core Tooling",
+      "status": "pending",
+      "details": "- Scaffold a new Next.js 15 project using the App Router and TypeScript.\n- Integrate Tailwind CSS v4 and configure with shadcn/ui (Radix UI + Tailwind).\n- Add next-themes for light/dark mode support.\n- Set up ESLint, Prettier, and VS Code settings for code quality.\n- Create a Docker devcontainer for consistent development environments.\n- Add a comprehensive `.env.example` file and implement `lib/env-check.ts` for environment variable validation at startup.\n- Ensure the project is ready for further feature development and adheres to the specified tech stack.",
+      "priority": "high",
+      "description": "Set up the foundational Next.js 15 project structure with TypeScript, Tailwind CSS v4, shadcn/ui, next-themes, and essential development tooling.",
+      "dependencies": [],
+      "testStrategy": "- Run the development server and verify the default Next.js page loads.\n- Confirm Tailwind and shadcn/ui styles render correctly.\n- Switch between light and dark themes and verify persistence.\n- Lint and format code to ensure ESLint and Prettier are active.\n- Validate environment variable checks by running with missing/invalid variables."
+    },
+    {
+      "id": 2,
+      "title": "Implement Dummy Landing Page UI",
+      "status": "pending",
+      "details": "- Build a landing page at `/` using Next.js App Router.\n- Use shadcn/ui components and Tailwind CSS for layout and styling.\n- Include a prominent search bar (non-functional for now), project branding, and a brief description.\n- Add light/dark theme toggle using next-themes.\n- Ensure WCAG 2.1 AA accessibility, keyboard navigation, and ARIA attributes.\n- Prepare for future integration of authentication and search features.",
+      "priority": "high",
+      "description": "Create a visually appealing, accessible dummy landing page as the initial homepage for git-search.",
+      "dependencies": [
+        1
+      ],
+      "testStrategy": "- Load the landing page and verify layout, branding, and dummy search bar are present.\n- Test keyboard navigation and screen reader accessibility.\n- Toggle between light and dark modes and confirm UI updates.\n- Validate responsive design on multiple screen sizes."
+    },
+    {
+      "id": 3,
+      "title": "Integrate Clerk Authentication (Sign Up/Sign In)",
+      "status": "pending",
+      "details": "- Install and configure Clerk.js with required environment variables.\n- Implement sign-up and sign-in UI flows using Clerk components.\n- Protect `/dashboard` and `/favorites` routes with Clerk middleware.\n- Ensure session management and secure HTTP-only cookies.\n- Prepare for future integration with Supabase and personalized features.",
+      "priority": "medium",
+      "description": "Set up Clerk.js for user authentication, enabling sign-up and sign-in flows, and protect relevant routes.",
+      "dependencies": [
+        1,
+        2
+      ],
+      "testStrategy": "- Register a new user and sign in/out, verifying session persistence.\n- Attempt to access protected routes without authentication and confirm redirection.\n- Check that session tokens are stored securely.\n- Validate error handling for failed authentication attempts."
+    },
+    {
+      "id": 4,
+      "title": "Set Up Supabase Backend for Favorites",
+      "status": "pending",
+      "details": "- Create a Supabase project and configure PostgreSQL schema for favorites.\n- Enable Row-Level Security (RLS) to isolate user data.\n- Add Supabase client to the Next.js project and configure with environment variables.\n- Prepare API routes for adding/removing favorites (implementation in future tasks).\n- Document schema and RLS policies for future reference.",
+      "priority": "medium",
+      "description": "Configure Supabase PostgreSQL with Row-Level Security for storing user favorites, and connect it to the Next.js app.",
+      "dependencies": [
+        1,
+        3
+      ],
+      "testStrategy": "- Connect to Supabase from the Next.js app and verify connectivity.\n- Test RLS by attempting to access another user's favorites (should be denied).\n- Validate schema by inserting and querying dummy favorite records.\n- Ensure environment variables are loaded and validated at startup."
+    },
+    {
+      "id": 5,
+      "title": "Prepare API Layer Structure and Environment Validation",
+      "status": "pending",
+      "details": "- Create `src/app/api` directory for all future serverless API routes (search, analysis, AI chat, favorites, dashboard stats).\n- Implement a shared environment validation utility (`lib/env-check.ts`) that runs at startup and on API route invocation.\n- Ensure all required environment variables (GitHub token, Clerk credentials, Supabase URL/key, AI API keys) are checked and errors are surfaced early.\n- Document the API route structure and validation process for the team.",
+      "priority": "medium",
+      "description": "Establish the folder structure and boilerplate for serverless API routes, and ensure robust environment variable validation.",
+      "dependencies": [
+        1
+      ],
+      "testStrategy": "- Start the app with missing/invalid environment variables and confirm errors are thrown.\n- Access a dummy API route and verify environment validation runs.\n- Check that the API folder structure matches the PRD requirements.\n- Review documentation for clarity and completeness."
+    }
+  ],
+  "expanded_tasks": []
+}
