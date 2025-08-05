@@ -12,6 +12,9 @@ export function checkEnvironmentVariables() {
       openai: process.env.OPENAI_API_KEY,
       anthropic: process.env.ANTHROPIC_API_KEY,
     },
+    github: {
+      token: process.env.GITHUB_TOKEN,
+    },
   };
 
   const status = {
@@ -22,10 +25,11 @@ export function checkEnvironmentVariables() {
       requiredEnvVars.supabase.url && requiredEnvVars.supabase.anonKey
     ),
     ai: !!(requiredEnvVars.ai.openai || requiredEnvVars.ai.anthropic),
+    github: !!requiredEnvVars.github.token,
     allConfigured: false,
   };
 
-  status.allConfigured = status.clerk && status.supabase && status.ai;
+  status.allConfigured = status.clerk && status.supabase && status.ai && status.github;
 
   return status;
 }
@@ -61,6 +65,16 @@ export function getSetupInstructions() {
         "Copy OPENAI_API_KEY to .env.local",
       ],
       envVars: ["OPENAI_API_KEY"],
+    },
+    {
+      service: "GitHub",
+      description: "GitHub API access for repository search",
+      steps: [
+        "Go to https://github.com/settings/tokens",
+        "Create a personal access token with repo scope",
+        "Copy GITHUB_TOKEN to .env.local",
+      ],
+      envVars: ["GITHUB_TOKEN"],
     },
   ];
 }

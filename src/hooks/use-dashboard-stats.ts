@@ -15,6 +15,36 @@ interface DashboardStats {
     };
     analyzed_at: string;
   }>;
+  searchAnalytics: {
+    totalSearches24h: number;
+    uniqueQueries24h: number;
+    averageResponseTime: number;
+    cacheHitRate: number;
+    errorRate: number;
+    rateLimitRate: number;
+    topQueries: Array<{ query: string; count: number }>;
+    topFilters: Array<{ filter: string; value: string; count: number }>;
+    recentSearches: Array<{
+      query: string;
+      results_count: number;
+      response_time_ms: number;
+      cached: boolean;
+      timestamp: string;
+      error?: string;
+    }>;
+  };
+  systemStats: {
+    cache: {
+      size: number;
+      hitRate: number;
+      memoryUsage: number;
+    };
+    rateLimiting: {
+      activeClients: number;
+      totalBlocked: number;
+      blockRate: number;
+    };
+  };
 }
 
 export function useDashboardStats() {
