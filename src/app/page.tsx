@@ -93,9 +93,15 @@ export default function Home() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10 h-12 text-base"
+                aria-label="Search repositories"
               />
             </div>
-            <Button type="submit" size="lg" className="h-12 px-8 bg-purple-600 hover:bg-purple-700 text-white">
+            <Button 
+              type="submit" 
+              size="lg" 
+              className="h-12 px-8 bg-purple-600 hover:bg-purple-700 text-white"
+              disabled={!searchQuery.trim()}
+            >
               Search
             </Button>
           </div>

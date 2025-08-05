@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase';
+import { searchAnalytics } from '@/lib/analytics';
+import { searchCache } from '@/lib/cache';
+import { searchRateLimiter } from '@/lib/rate-limit';
 
 export async function GET() {
   try {
@@ -80,6 +83,12 @@ export async function GET() {
       analyzed_at: repo.updated_at,
     })) || [];
 
+    // Get search analytics (last 24 hours)
+    const searchStats = searchAnalytics.getStats(24 * 60 * 60 * 1000);
+    const cacheStats = searchCache.getStats();
+    const rateLimitStats = searchRateLimiter.getStats();
+    const recentSearches = searchAnalytics.getRecentSearches(5);
+
     const dashboardStats = {
       totalRepositories: totalRepositories || 0,
       totalAnalyzed: totalAnalyzed || 0,
@@ -88,6 +97,36 @@ export async function GET() {
       averageComplexity,
       topLanguages,
       recentAnalyses: formattedRecentAnalyses,
+      searchAnalytics: {
+        totalSearches24h: searchStats.totalSearches,
+        uniqueQueries24h: searchStats.uniqueQueries,
+        averageResponseTime: searchStats.averageResponseTime,
+        cacheHitRate: searchStats.cacheHitRate,
+        errorRate: searchStats.errorRate,
+        rateLimitRate: searchStats.rateLimitRate,
+        topQueries: searchStats.topQueries.slice(0, 5), // Top 5
+        topFilters: searchStats.topFilters.slice(0, 5), // Top 5
+        recentSearches: recentSearches.map(search => ({
+          query: search.query,
+          results_count: search.results_count,
+          response_time_ms: search.response_time_ms,
+          cached: search.cached,
+          timestamp: new Date(search.timestamp).toISOString(),
+          error: search.error,
+        })),
+      },
+      systemStats: {
+        cache: {
+          size: cacheStats.size,
+          hitRate: cacheStats.hitRate,
+          memoryUsage: cacheStats.totalMemoryUsage,
+        },
+        rateLimiting: {
+          activeClients: rateLimitStats.activeClients,
+          totalBlocked: rateLimitStats.totalBlocked,
+          blockRate: rateLimitStats.blockRate,
+        },
+      },
     };
 
     return NextResponse.json(dashboardStats);

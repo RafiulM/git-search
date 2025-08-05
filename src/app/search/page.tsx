@@ -1,16 +1,11 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
-import { Search, Filter, Star, GitFork, Calendar, FileText, BarChart3, ExternalLink } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Skeleton } from '@/components/ui/skeleton';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { GitBranch } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
-// Authentication removed
+import { EnhancedSearch } from '@/components/enhanced-search';
+import { SearchResults } from '@/components/search-results';
 import Link from 'next/link';
 import { useRepositorySearch } from '@/hooks/use-repository-search';
 import { useRepositoryAnalysis } from '@/hooks/use-repository-analysis';
@@ -35,28 +30,58 @@ interface Repository {
   };
 }
 
-interface SearchResponse {
-  repositories: Repository[];
-  total_count: number;
-  incomplete_results: boolean;
+interface SearchFilters {
+  sort: string;
+  order: string;
+  language?: string;
+  topic?: string;
+  stars?: string;
+  forks?: string;
+  created?: string;
+  pushed?: string;
 }
 
 export default function SearchPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [query, setQuery] = useState(searchParams.get('q') || '');
-  const [sort, setSort] = useState('stars');
-  const [order, setOrder] = useState('desc');
-  const [page, setPage] = useState(1);
+  const [filters, setFilters] = useState<SearchFilters>({
+    sort: searchParams.get('sort') || 'stars',
+    order: searchParams.get('order') || 'desc',
+    language: searchParams.get('language') || undefined,
+    topic: searchParams.get('topic') || undefined,
+    stars: searchParams.get('stars') || undefined,
+    forks: searchParams.get('forks') || undefined,
+    created: searchParams.get('created') || undefined,
+    pushed: searchParams.get('pushed') || undefined,
+  });
+  const [page, setPage] = useState(parseInt(searchParams.get('page') || '1'));
 
   const { data: searchResults, isLoading: loading, error } = useRepositorySearch({
     query,
-    sort,
-    order,
+    ...filters,
     page,
     per_page: 30,
   });
 
   const { mutate: analyzeRepository, isPending: isAnalyzing } = useRepositoryAnalysis();
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (query) params.set('q', query);
+    if (filters.sort !== 'stars') params.set('sort', filters.sort);
+    if (filters.order !== 'desc') params.set('order', filters.order);
+    if (filters.language) params.set('language', filters.language);
+    if (filters.topic) params.set('topic', filters.topic);
+    if (filters.stars) params.set('stars', filters.stars);
+    if (filters.forks) params.set('forks', filters.forks);
+    if (filters.created) params.set('created', filters.created);
+    if (filters.pushed) params.set('pushed', filters.pushed);
+    if (page !== 1) params.set('page', page.toString());
+
+    const newUrl = `/search${params.toString() ? `?${params.toString()}` : ''}`;
+    router.replace(newUrl, { scroll: false });
+  }, [query, filters, page, router]);
 
   useEffect(() => {
     const q = searchParams.get('q');
@@ -66,27 +91,8 @@ export default function SearchPage() {
     }
   }, [searchParams, query]);
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSearch = () => {
     setPage(1);
-  };
-
-  const formatNumber = (num: number) => {
-    if (num >= 1000000) {
-      return (num / 1000000).toFixed(1) + 'M';
-    }
-    if (num >= 1000) {
-      return (num / 1000).toFixed(1) + 'k';
-    }
-    return num.toString();
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
   };
 
   const handleAnalyzeRepository = (repo: Repository) => {
@@ -101,6 +107,7 @@ export default function SearchPage() {
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <Link href="/" className="flex items-center gap-2">
+              <GitBranch className="w-8 h-8 text-blue-600" />
               <div className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                 Git Search
               </div>
@@ -114,244 +121,29 @@ export default function SearchPage() {
       </header>
 
       <main className="container mx-auto px-4 py-8 max-w-6xl">
-        {/* Search Form */}
-        <div className="mb-8">
-          <form onSubmit={handleSearch} className="flex gap-4 mb-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <Input
-                type="text"
-                placeholder="Search repositories (e.g., react typescript, machine learning python)"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            <Button type="submit" disabled={loading}>
-              {loading ? 'Searching...' : 'Search'}
-            </Button>
-          </form>
+        {/* Enhanced Search Component */}
+        <EnhancedSearch
+          query={query}
+          onQueryChange={setQuery}
+          filters={filters}
+          onFiltersChange={setFilters}
+          onSearch={handleSearch}
+          isLoading={loading}
+          error={error}
+          className="mb-8"
+        />
 
-          {/* Sort Controls */}
-          <div className="flex gap-4 items-center">
-            <div className="flex items-center gap-2">
-              <Filter className="w-4 h-4" />
-              <span className="text-sm">Sort by:</span>
-            </div>
-            <Select value={sort} onValueChange={setSort}>
-              <SelectTrigger className="w-32">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="stars">Stars</SelectItem>
-                <SelectItem value="forks">Forks</SelectItem>
-                <SelectItem value="updated">Updated</SelectItem>
-                <SelectItem value="created">Created</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={order} onValueChange={setOrder}>
-              <SelectTrigger className="w-32">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="desc">Descending</SelectItem>
-                <SelectItem value="asc">Ascending</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        {/* Results */}
-        {loading && (
-          <div className="space-y-4">
-            {[...Array(5)].map((_, i) => (
-              <Card key={i}>
-                <CardContent className="p-6">
-                  <Skeleton className="h-6 w-1/3 mb-2" />
-                  <Skeleton className="h-4 w-full mb-4" />
-                  <div className="flex gap-4">
-                    <Skeleton className="h-4 w-20" />
-                    <Skeleton className="h-4 w-20" />
-                    <Skeleton className="h-4 w-20" />
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
-
-        {searchResults && !loading && (
-          <>
-            <div className="mb-6">
-              <p className="text-sm text-muted-foreground">
-                Found {formatNumber(searchResults.total_count)} repositories
-                {searchResults.incomplete_results && ' (results may be incomplete)'}
-              </p>
-            </div>
-
-            <div className="space-y-3">
-              {searchResults.repositories.map((repo) => (
-                <Card key={repo.id} className="hover:shadow-lg transition-shadow">
-                  <CardContent className="p-4">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-2">
-                          <div className="flex items-center gap-2">
-                            <Link 
-                              href={`/repository/${repo.full_name.replace('/', '-')}`}
-                              className="text-lg font-semibold text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-                            >
-                              {repo.full_name}
-                            </Link>
-                            <a
-                              href={repo.html_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-gray-400 hover:text-gray-600"
-                            >
-                              <ExternalLink className="w-4 h-4" />
-                            </a>
-                          </div>
-                          
-                          <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                            <div className="flex items-center gap-1">
-                              <Star className="w-3 h-3" />
-                              {formatNumber(repo.stargazers_count)}
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <GitFork className="w-3 h-3" />
-                              {formatNumber(repo.forks_count)}
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <Calendar className="w-3 h-3" />
-                              {formatDate(repo.updated_at)}
-                            </div>
-                          </div>
-                        </div>
-                        
-                        <p className="text-muted-foreground text-sm mb-2 line-clamp-2">
-                          {repo.description || 'No description available'}
-                        </p>
-
-                        <div className="flex flex-wrap gap-1">
-                          {repo.language && (
-                            <Badge variant="secondary" className="text-xs">{repo.language}</Badge>
-                          )}
-                          {repo.topics?.slice(0, 2).map((topic) => (
-                            <Badge key={topic} variant="outline" className="text-xs">
-                              {topic}
-                            </Badge>
-                          ))}
-                          {repo.topics?.length > 2 && (
-                            <Badge variant="outline" className="text-xs">
-                              +{repo.topics.length - 2}
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex flex-col gap-2 ml-4 shrink-0">
-                        {repo.analysis?.statistics && repo.analysis.statistics.length > 0 ? (
-                          <Link href={`/repository/${repo.full_name.replace('/', '-')}`}>
-                            <Button variant="outline" size="sm">
-                              <BarChart3 className="w-4 h-4 mr-1" />
-                              View
-                            </Button>
-                          </Link>
-                        ) : (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleAnalyzeRepository(repo)}
-                            disabled={isAnalyzing}
-                          >
-                            <FileText className="w-4 h-4 mr-1" />
-                            {isAnalyzing ? 'Analyzing...' : 'Analyze'}
-                          </Button>
-                        )}
-                        
-                        {repo.analysis?.last_analyzed && (
-                          <p className="text-xs text-muted-foreground text-center">
-                            {formatDate(repo.analysis.last_analyzed)}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-
-            {/* Pagination */}
-            {searchResults.total_count > 30 && (
-              <div className="mt-8 flex justify-center gap-2">
-                <Button
-                  variant="outline"
-                  disabled={page === 1}
-                  onClick={() => setPage(page - 1)}
-                >
-                  Previous
-                </Button>
-                <span className="flex items-center px-4 text-sm">
-                  Page {page}
-                </span>
-                <Button
-                  variant="outline"
-                  disabled={page * 30 >= searchResults.total_count}
-                  onClick={() => setPage(page + 1)}
-                >
-                  Next
-                </Button>
-              </div>
-            )}
-          </>
-        )}
-
-        {searchResults && searchResults.repositories.length === 0 && !loading && (
-          <Card>
-            <CardContent className="text-center py-12">
-              <div className="text-6xl mb-4">🔍</div>
-              <h3 className="text-xl font-semibold mb-2">No repositories found</h3>
-              <p className="text-muted-foreground">
-                Try adjusting your search terms or filters
-              </p>
-            </CardContent>
-          </Card>
-        )}
-
-        {!searchResults && !loading && query && (
-          <Card>
-            <CardContent className="text-center py-12">
-              <div className="text-6xl mb-4">👋</div>
-              <h3 className="text-xl font-semibold mb-2">Welcome to Git Search</h3>
-              <p className="text-muted-foreground mb-4">
-                Search GitHub repositories and get detailed analysis including:
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto text-left">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-sm">
-                    <BarChart3 className="w-4 h-4 text-blue-500" />
-                    Lines of code & token estimates
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <FileText className="w-4 h-4 text-green-500" />
-                    Project documentation
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-sm">
-                    <Star className="w-4 h-4 text-yellow-500" />
-                    Tech stack analysis
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <GitFork className="w-4 h-4 text-purple-500" />
-                    Architecture flowcharts
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        {/* Enhanced Search Results Component */}
+        <SearchResults
+          data={searchResults}
+          isLoading={loading}
+          error={error}
+          page={page}
+          onPageChange={setPage}
+          perPage={30}
+          onAnalyzeRepository={handleAnalyzeRepository}
+          isAnalyzing={isAnalyzing}
+        />
       </main>
     </div>
   );
