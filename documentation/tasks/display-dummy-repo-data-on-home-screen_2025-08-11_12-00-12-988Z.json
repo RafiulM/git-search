@@ -1,0 +1,50 @@
+[
+  {
+    "title": "Create dummy repository data structure and mock data",
+    "description": "Define TypeScript interfaces for repository data and create a comprehensive set of dummy repositories with realistic properties like name, description, language, stars, forks, and last updated date.",
+    "details": "Create a types file (e.g., `types/repository.ts`) with interfaces for Repository objects including properties like id, name, description, language, stars, forks, isPrivate, lastUpdated, and owner. Then create a data file (e.g., `data/dummy-repos.ts`) with an array of 8-12 realistic dummy repositories covering various programming languages and project types. Include popular languages like TypeScript, Python, JavaScript, Go, and Rust. Make the data diverse with different star counts, descriptions, and recent update dates to simulate a real developer's repository collection.",
+    "status": "pending",
+    "test_strategy": "Verify that all dummy data objects conform to the TypeScript interface. Test that the data exports correctly and can be imported in other components. Validate that all required fields are present and have appropriate data types.",
+    "priority": "high",
+    "ordinal": 0,
+    "task_group_id": "b19a7d28-fada-47c5-94ef-e3ddc20af15e",
+    "parent_task_id": null,
+    "ai_result": null,
+    "id": "432c8858-dfdf-4cca-af20-02c6ba923591",
+    "created_at": "2025-08-11T12:00:01.265095Z",
+    "user_id": "user_2qaB6nlVH3R9QXhQZpt1nmVDymN",
+    "subtasks": []
+  },
+  {
+    "title": "Build repository card component with shadcn/ui styling",
+    "description": "Create a reusable RepositoryCard component that displays individual repository information in an attractive card format using shadcn/ui components and proper responsive design.",
+    "details": "Create a `components/RepositoryCard.tsx` component that accepts a repository object as props. Use shadcn/ui Card component as the base, and include elements like repository name as a heading, description text, language badge with color coding, star and fork counts with icons from lucide-react, and last updated timestamp. Implement proper responsive design with Tailwind classes, ensure the component works in both light and dark themes using CSS custom properties, and add hover effects for better interactivity. Include proper TypeScript props interface and handle edge cases like missing descriptions or zero stars.",
+    "status": "pending",
+    "test_strategy": "Test component rendering with various repository data objects. Verify responsive behavior across different screen sizes. Test theme switching between light and dark modes. Validate that all icons and badges display correctly and that hover states work as expected.",
+    "priority": "medium",
+    "ordinal": 1,
+    "task_group_id": "b19a7d28-fada-47c5-94ef-e3ddc20af15e",
+    "parent_task_id": null,
+    "ai_result": null,
+    "id": "596cc4bc-9ed6-4d5e-b542-914c879e0d05",
+    "created_at": "2025-08-11T12:00:01.265105Z",
+    "user_id": "user_2qaB6nlVH3R9QXhQZpt1nmVDymN",
+    "subtasks": []
+  },
+  {
+    "title": "Integrate repository display into home page layout",
+    "description": "Modify the main home page to display the dummy repository data using the RepositoryCard component in a responsive grid layout that fits well with the existing design.",
+    "details": "Update the home page component (likely `app/page.tsx` or `app/(dashboard)/page.tsx`) to import and display the dummy repository data. Create a section with an appropriate heading like 'My Repositories' or 'Recent Projects'. Implement a responsive grid layout using Tailwind CSS grid classes (e.g., `grid-cols-1 md:grid-cols-2 lg:grid-cols-3`) to display the RepositoryCard components. Ensure proper spacing and alignment with the existing page layout, maintain consistency with the overall design theme, and add loading states or empty states as placeholders for future dynamic data integration. Consider adding a 'View All' link or pagination controls for future scalability.",
+    "status": "pending",
+    "test_strategy": "Test the home page renders correctly with all repository cards displayed. Verify responsive grid behavior across mobile, tablet, and desktop viewports. Ensure the new section integrates seamlessly with existing page content and navigation. Test theme consistency and that the layout doesn't break with different amounts of repository data.",
+    "priority": "medium",
+    "ordinal": 2,
+    "task_group_id": "b19a7d28-fada-47c5-94ef-e3ddc20af15e",
+    "parent_task_id": null,
+    "ai_result": null,
+    "id": "3ce03f6e-7879-4dab-b002-11b919be3a69",
+    "created_at": "2025-08-11T12:00:01.265109Z",
+    "user_id": "user_2qaB6nlVH3R9QXhQZpt1nmVDymN",
+    "subtasks": []
+  }
+]

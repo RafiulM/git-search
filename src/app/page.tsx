@@ -23,6 +23,8 @@ import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useFeaturedRepositories } from "@/hooks/use-featured-repositories";
+import { RepositoryCard } from "@/components/RepositoryCard";
+import { dummyRepositories } from "@/data/dummy-repos";
 
 export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -104,6 +106,31 @@ export default function Home() {
       </div>
 
       <main className="container mx-auto px-4 sm:px-6 pb-12 sm:pb-8 max-w-5xl">
+        {/* My Repositories Section */}
+        <div className="mb-16">
+          <div className="text-center mb-8">
+            <h2 className="text-2xl font-bold mb-2">My Repositories</h2>
+            <p className="text-muted-foreground">
+              A collection of repositories showcasing various technologies and projects
+            </p>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {dummyRepositories.slice(0, 6).map((repository) => (
+              <RepositoryCard key={repository.id} repository={repository} />
+            ))}
+          </div>
+
+          <div className="text-center mt-8">
+            <Link href="/dashboard">
+              <Button variant="outline" size="lg">
+                <GitBranch className="w-4 h-4 mr-2" />
+                View All Repositories
+              </Button>
+            </Link>
+          </div>
+        </div>
+
         {/* Featured Repositories - Moved to Top */}
         <div className="mb-16">
           <div className="text-center mb-8">
