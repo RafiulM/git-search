@@ -52,7 +52,6 @@ COPY . .
 # Set environment variables for emoji support
 ENV LANG=C.UTF-8
 ENV LC_ALL=C.UTF-8
-ENV API_PORT=8000
 
 # Expose port
 EXPOSE $API_PORT
