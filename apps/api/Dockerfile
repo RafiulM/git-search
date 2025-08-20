@@ -52,9 +52,10 @@ COPY . .
 # Set environment variables for emoji support
 ENV LANG=C.UTF-8
 ENV LC_ALL=C.UTF-8
+ENV API_PORT=8000
 
 # Expose port
-EXPOSE 8000
+EXPOSE $API_PORT
 
 # Run the application
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port $API_PORT"]

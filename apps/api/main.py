@@ -96,6 +96,7 @@ async def health_check():
 if __name__ == "__main__":
     import uvicorn
     import argparse
+    import os
 
     # Parse command line arguments
     parser = argparse.ArgumentParser(description="Git-Search Repository Analysis API")
@@ -103,7 +104,7 @@ if __name__ == "__main__":
         "--host", default="127.0.0.1", help="Host to bind the server to"
     )
     parser.add_argument(
-        "--port", type=int, default=8888, help="Port to bind the server to"
+        "--port", type=int, default=int(os.getenv("API_PORT", 8888)), help="Port to bind the server to"
     )
     parser.add_argument(
         "--reload", action="store_true", help="Enable auto-reload on code changes"
