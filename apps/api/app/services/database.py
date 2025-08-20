@@ -119,12 +119,14 @@ class DatabaseService:
         except Exception as e:
             raise Exception(f"Database error creating repository: {str(e)}")
 
-    async def upsert_repositories(self, repo_data_list: List[RepositoryInsert]) -> List[Repository]:
+    async def upsert_repositories(
+        self, repo_data_list: List[RepositoryInsert]
+    ) -> List[Repository]:
         """Bulk upsert repositories (create if not exists, update if exists) using Supabase upsert"""
         try:
             # Convert list of RepositoryInsert objects to list of dictionaries
             data_list = []
-            
+
             for repo_data in repo_data_list:
                 # Create a clean JSON object with only the fields that exist in the schema
                 data = {}
@@ -132,9 +134,9 @@ class DatabaseService:
                 # Extract repository name from URL (part after the last slash)
                 if repo_data.repo_url:
                     # Get the repository name from the URL (part after the last slash)
-                    repo_name = repo_data.repo_url.rstrip('/').split('/')[-1]
+                    repo_name = repo_data.repo_url.rstrip("/").split("/")[-1]
                     # Remove .git suffix if present
-                    if repo_name.endswith('.git'):
+                    if repo_name.endswith(".git"):
                         repo_name = repo_name[:-4]
                     data["name"] = repo_name
                     data["repo_url"] = repo_data.repo_url
@@ -173,7 +175,7 @@ class DatabaseService:
                 else:
                     # Default to PENDING if not specified
                     data["processing_status"] = "pending"
-                
+
                 data_list.append(data)
 
             # Use Supabase bulk upsert with on_conflict on repo_url
@@ -277,7 +279,7 @@ class DatabaseService:
             if get_value("processing_status") is not None:
                 processing_status = get_value("processing_status")
                 # Handle both enum and string values
-                if hasattr(processing_status, 'value'):
+                if hasattr(processing_status, "value"):
                     data["processing_status"] = processing_status.value
                 else:
                     data["processing_status"] = processing_status
@@ -395,7 +397,7 @@ class DatabaseService:
             # Tree structure
             if analysis_data.tree_structure is not None:
                 data["tree_structure"] = analysis_data.tree_structure
-                
+
             # README image source
             if analysis_data.readme_image_src is not None:
                 data["readme_image_src"] = analysis_data.readme_image_src
@@ -579,7 +581,7 @@ class DatabaseService:
             # Tree structure
             if get_value("tree_structure") is not None:
                 data["tree_structure"] = get_value("tree_structure")
-                
+
             # README image source
             if get_value("readme_image_src") is not None:
                 data["readme_image_src"] = get_value("readme_image_src")
@@ -589,6 +591,12 @@ class DatabaseService:
                 data["analysis_data"] = json.dumps(
                     get_value("analysis_data"), cls=DateTimeEncoder
                 )
+
+            if get_value("ai_summary") is not None:
+                data["ai_summary"] = get_value("ai_summary")
+
+            if get_value("description") is not None:
+                data["description"] = get_value("description")
 
             if not data:
                 return await self.get_repository_analysis(analysis_id)
@@ -768,39 +776,79 @@ class DatabaseService:
     async def get_repositories_needing_processing(
         self, limit: int = 100
     ) -> List[Repository]:
-        """Get repositories that don't have analysis or documents yet"""
+        """Get repositories that need analysis, AI summary/description, or documents (comprehensive check)"""
         try:
-            # First get all repository IDs that have analysis
-            analysis_result = (
-                self.client.table("repository_analysis")
-                .select("repository_id")
-                .execute()
+            repositories_needing_processing = []
+
+            # 1. Get repositories without any analysis
+            repos_without_analysis = await self.get_repositories_without_analysis(limit)
+            repositories_needing_processing.extend(repos_without_analysis)
+
+            # If we've reached the limit, return early
+            if len(repositories_needing_processing) >= limit:
+                return repositories_needing_processing[:limit]
+
+            # 2. Get repositories with analysis but missing AI summary or description
+            remaining_limit = limit - len(repositories_needing_processing)
+            repos_needing_ai = (
+                await self.get_repositories_needing_ai_summary_or_description(
+                    remaining_limit
+                )
             )
 
-            analyzed_repo_ids = []
-            if analysis_result.data:
-                analyzed_repo_ids = [
-                    row["repository_id"] for row in analysis_result.data
-                ]
+            # Add repos that aren't already in the list
+            existing_repo_ids = {
+                str(repo.id) for repo in repositories_needing_processing
+            }
+            for repo in repos_needing_ai:
+                if (
+                    str(repo.id) not in existing_repo_ids
+                    and len(repositories_needing_processing) < limit
+                ):
+                    repositories_needing_processing.append(repo)
+                    existing_repo_ids.add(str(repo.id))
 
-            # Then get repositories not in that list
-            query = self.client.table("repositories").select("*")
+            # If we've reached the limit, return early
+            if len(repositories_needing_processing) >= limit:
+                return repositories_needing_processing[:limit]
 
-            if analyzed_repo_ids:
-                query = query.not_.in_("id", analyzed_repo_ids)
-
-            result = (
-                query.order("created_at", desc=False)  # Process oldest first
-                .limit(limit)
-                .execute()
+            # 3. Get repositories with AI summary and description but missing documents
+            remaining_limit = limit - len(repositories_needing_processing)
+            repos_needing_docs = (
+                await self.get_repositories_needing_documents_with_ai_ready(
+                    remaining_limit
+                )
             )
 
-            repositories = []
-            if result.data:
-                for repo in result.data:
-                    repositories.append(Repository(**repo))
+            # Add repos that aren't already in the list
+            for repo in repos_needing_docs:
+                if (
+                    str(repo.id) not in existing_repo_ids
+                    and len(repositories_needing_processing) < limit
+                ):
+                    repositories_needing_processing.append(repo)
+                    existing_repo_ids.add(str(repo.id))
 
-            return repositories
+            # If we've reached the limit, return early
+            if len(repositories_needing_processing) >= limit:
+                return repositories_needing_processing[:limit]
+
+            # 4. Get repositories with orphaned/incomplete documents that need regeneration
+            remaining_limit = limit - len(repositories_needing_processing)
+            repos_with_orphaned_docs = (
+                await self.get_repositories_with_orphaned_documents(remaining_limit)
+            )
+
+            # Add repos that aren't already in the list
+            for repo in repos_with_orphaned_docs:
+                if (
+                    str(repo.id) not in existing_repo_ids
+                    and len(repositories_needing_processing) < limit
+                ):
+                    repositories_needing_processing.append(repo)
+                    existing_repo_ids.add(str(repo.id))
+
+            return repositories_needing_processing[:limit]
 
         except Exception as e:
             raise Exception(
@@ -852,16 +900,35 @@ class DatabaseService:
     async def get_repositories_without_documents(
         self, limit: int = 100
     ) -> List[Repository]:
-        """Get repositories that don't have any documents"""
+        """Get repositories that don't have any documents (via their latest analysis)"""
         try:
-            # First get all repository IDs that have documents
+            # Get all repositories with their latest analysis that have documents
             docs_result = (
-                self.client.table("documents").select("repository_id").execute()
+                self.client.table("documents")
+                .select("repository_analysis_id")
+                .execute()
             )
 
-            documented_repo_ids = []
+            documented_analysis_ids = []
             if docs_result.data:
-                documented_repo_ids = [row["repository_id"] for row in docs_result.data]
+                documented_analysis_ids = [
+                    row["repository_analysis_id"] for row in docs_result.data
+                ]
+
+            # Get repository IDs from analyses that have documents
+            documented_repo_ids = []
+            if documented_analysis_ids:
+                analysis_result = (
+                    self.client.table("repository_analysis")
+                    .select("repository_id")
+                    .in_("id", documented_analysis_ids)
+                    .execute()
+                )
+
+                if analysis_result.data:
+                    documented_repo_ids = [
+                        row["repository_id"] for row in analysis_result.data
+                    ]
 
             # Then get repositories not in that list
             query = self.client.table("repositories").select("*")
@@ -890,6 +957,11 @@ class DatabaseService:
     # Document operations
     async def create_document(self, doc_data: DocumentInsert) -> Document:
         """Create a new document"""
+
+        import logging
+
+        logger = logging.getLogger(__name__)
+
         try:
             # Create a clean JSON object with only the fields that exist in the schema
             data = {}
@@ -897,11 +969,11 @@ class DatabaseService:
             # Generate a new UUID
             data["id"] = str(uuid4())
 
-            # Map repository_id (required field)
-            if doc_data.repository_id:
-                data["repository_id"] = str(doc_data.repository_id)
+            # Map repository_analysis_id (required field)
+            if doc_data.repository_analysis_id:
+                data["repository_analysis_id"] = str(doc_data.repository_analysis_id)
             else:
-                raise ValueError("repository_id is required")
+                raise ValueError("repository_analysis_id is required")
 
             # Map document metadata fields (required fields)
             if doc_data.document_type:
@@ -944,6 +1016,14 @@ class DatabaseService:
             if doc_data.metadata is not None:
                 data["metadata"] = json.dumps(doc_data.metadata, cls=DateTimeEncoder)
 
+            logger.info(f"Creating document: {data.keys()}")
+
+            if "repository_id" in data:
+                logger.info(
+                    f"Removing repository_id from data: {data['repository_id']}"
+                )
+                data.pop("repository_id")
+
             result = self.client.table("documents").insert(data).execute()
 
             if result.data:
@@ -963,15 +1043,15 @@ class DatabaseService:
         except Exception as e:
             raise Exception(f"Database error creating document: {str(e)}")
 
-    async def get_documents_by_repository(
-        self, repo_id: UUID, document_type: Optional[str] = None
+    async def get_documents_by_repository_analysis(
+        self, analysis_id: UUID, document_type: Optional[str] = None
     ) -> List[Document]:
-        """Get documents by repository ID"""
+        """Get documents by repository analysis ID"""
         try:
             query = (
                 self.client.table("documents")
                 .select("*")
-                .eq("repository_id", str(repo_id))
+                .eq("repository_analysis_id", str(analysis_id))
             )
 
             if document_type:
@@ -995,13 +1075,33 @@ class DatabaseService:
         except Exception as e:
             raise Exception(f"Database error getting documents: {str(e)}")
 
-    async def get_current_documents(self, repo_id: UUID) -> List[Document]:
-        """Get current documents for a repository"""
+    async def get_documents_by_repository(
+        self, repo_id: UUID, document_type: Optional[str] = None
+    ) -> List[Document]:
+        """Get documents by repository ID (via latest analysis)"""
+        try:
+            # Get the latest repository analysis
+            latest_analysis = await self.get_latest_repository_analysis(repo_id)
+            if not latest_analysis:
+                return []
+
+            # Get documents for the latest analysis
+            return await self.get_documents_by_repository_analysis(
+                latest_analysis.id, document_type
+            )
+
+        except Exception as e:
+            raise Exception(f"Database error getting documents by repository: {str(e)}")
+
+    async def get_current_documents_by_analysis(
+        self, analysis_id: UUID
+    ) -> List[Document]:
+        """Get current documents for a repository analysis"""
         try:
             result = (
                 self.client.table("documents")
                 .select("*")
-                .eq("repository_id", str(repo_id))
+                .eq("repository_analysis_id", str(analysis_id))
                 .eq("is_current", True)
                 .order("created_at", desc=True)
                 .execute()
@@ -1023,14 +1123,32 @@ class DatabaseService:
         except Exception as e:
             raise Exception(f"Database error getting current documents: {str(e)}")
 
+    async def get_current_documents(self, repo_id: UUID) -> List[Document]:
+        """Get current documents for a repository (via latest analysis)"""
+        try:
+            # Get the latest repository analysis
+            latest_analysis = await self.get_latest_repository_analysis(repo_id)
+            if not latest_analysis:
+                return []
+
+            # Get current documents for the latest analysis
+            return await self.get_current_documents_by_analysis(latest_analysis.id)
+
+        except Exception as e:
+            raise Exception(
+                f"Database error getting current documents by repository: {str(e)}"
+            )
+
     # Helper method to get current AI summary
-    async def get_current_ai_summary(self, repo_id: UUID) -> Optional[Document]:
-        """Get current AI summary for a repository"""
+    async def get_current_ai_summary_by_analysis(
+        self, analysis_id: UUID
+    ) -> Optional[Document]:
+        """Get current AI summary for a repository analysis"""
         try:
             result = (
                 self.client.table("documents")
                 .select("*")
-                .eq("repository_id", str(repo_id))
+                .eq("repository_analysis_id", str(analysis_id))
                 .eq("document_type", "ai_summary")
                 .eq("is_current", True)
                 .order("created_at", desc=True)
@@ -1054,16 +1172,51 @@ class DatabaseService:
         except Exception as e:
             raise Exception(f"Database error getting current AI summary: {str(e)}")
 
-    async def mark_previous_documents_not_current(
-        self, repo_id: UUID, document_type: str
+    async def get_current_ai_summary(self, repo_id: UUID) -> Optional[Document]:
+        """Get current AI summary for a repository (via latest analysis)"""
+        try:
+            # Get the latest repository analysis
+            latest_analysis = await self.get_latest_repository_analysis(repo_id)
+            if not latest_analysis:
+                return None
+
+            # Get current AI summary for the latest analysis
+            return await self.get_current_ai_summary_by_analysis(latest_analysis.id)
+
+        except Exception as e:
+            raise Exception(
+                f"Database error getting current AI summary by repository: {str(e)}"
+            )
+
+    async def mark_previous_documents_not_current_by_analysis(
+        self, analysis_id: UUID, document_type: str
     ) -> None:
-        """Mark all previous documents of a specific type as not current"""
+        """Mark all previous documents of a specific type as not current for a repository analysis"""
         try:
             self.client.table("documents").update({"is_current": False}).eq(
-                "repository_id", str(repo_id)
+                "repository_analysis_id", str(analysis_id)
             ).eq("document_type", document_type).execute()
         except Exception as e:
             raise Exception(f"Database error updating previous documents: {str(e)}")
+
+    async def mark_previous_documents_not_current(
+        self, repo_id: UUID, document_type: str
+    ) -> None:
+        """Mark all previous documents of a specific type as not current (via latest analysis)"""
+        try:
+            # Get the latest repository analysis
+            latest_analysis = await self.get_latest_repository_analysis(repo_id)
+            if not latest_analysis:
+                return  # No analysis exists, nothing to mark
+
+            # Mark previous documents as not current for the latest analysis
+            await self.mark_previous_documents_not_current_by_analysis(
+                latest_analysis.id, document_type
+            )
+        except Exception as e:
+            raise Exception(
+                f"Database error updating previous documents by repository: {str(e)}"
+            )
 
     # Batch processing operations
     async def create_batch_processing(
@@ -1307,23 +1460,43 @@ class DatabaseService:
     async def get_repositories_without_twitter_links(
         self, limit: int = 50
     ) -> List[Repository]:
-        """Get repositories that don't have Twitter links (for posting)"""
+        """Get repositories that don't have Twitter links (checking repository_analysis table)"""
         try:
-            result = (
+            # Get all repositories first
+            all_repos_result = (
                 self.client.table("repositories")
                 .select("*")
-                .is_("twitter_link", "null")
-                .limit(limit)
                 .order("created_at", desc=False)  # Oldest first
                 .execute()
             )
 
-            if result.data:
-                repositories = []
-                for row_data in result.data:
-                    repositories.append(Repository(**row_data))
-                return repositories
-            return []
+            if not all_repos_result.data:
+                return []
+
+            repositories_without_links = []
+
+            for repo_data in all_repos_result.data:
+                repo_id = repo_data["id"]
+
+                # Check if this repository has a twitter_link in any of its analyses
+                analysis_result = (
+                    self.client.table("repository_analysis")
+                    .select("twitter_link")
+                    .eq("repository_id", repo_id)
+                    .not_.is_("twitter_link", "null")
+                    .limit(1)
+                    .execute()
+                )
+
+                # If no analysis with twitter_link found, include this repository
+                if not analysis_result.data:
+                    repositories_without_links.append(Repository(**repo_data))
+
+                    # Stop if we've reached the limit
+                    if len(repositories_without_links) >= limit:
+                        break
+
+            return repositories_without_links
 
         except Exception as e:
             raise Exception(
@@ -1560,7 +1733,7 @@ class DatabaseService:
     async def update_repository_twitter_link(
         self, repository_id: UUID, twitter_url: str
     ) -> Optional[Repository]:
-        """Update repository with Twitter link after successful posting"""
+        """DEPRECATED: Update repository with Twitter link (now stored in repository_analysis table)"""
         try:
             data = {"twitter_link": twitter_url}
 
@@ -1655,7 +1828,9 @@ class DatabaseService:
         except Exception as e:
             raise Exception(f"Database error getting prompt: {str(e)}")
 
-    async def get_prompt_by_name_and_type(self, name: str, type: str) -> Optional[Prompt]:
+    async def get_prompt_by_name_and_type(
+        self, name: str, type: str
+    ) -> Optional[Prompt]:
         """Get active prompt by name and type"""
         try:
             result = (
@@ -1702,7 +1877,9 @@ class DatabaseService:
                 data["name"] = get_value("name")
             if get_value("type") is not None:
                 prompt_type = get_value("type")
-                data["type"] = prompt_type.value if hasattr(prompt_type, 'value') else prompt_type
+                data["type"] = (
+                    prompt_type.value if hasattr(prompt_type, "value") else prompt_type
+                )
             if get_value("content") is not None:
                 data["content"] = get_value("content")
             if get_value("version") is not None:
@@ -1712,7 +1889,9 @@ class DatabaseService:
             if get_value("description") is not None:
                 data["description"] = get_value("description")
             if get_value("metadata") is not None:
-                data["metadata"] = json.dumps(get_value("metadata"), cls=DateTimeEncoder)
+                data["metadata"] = json.dumps(
+                    get_value("metadata"), cls=DateTimeEncoder
+                )
 
             if not data:
                 return await self.get_prompt(prompt_id)
@@ -1745,11 +1924,11 @@ class DatabaseService:
         try:
             # Build base query
             query = self.client.table("prompts").select("*", count="exact")
-            
+
             # Apply type filter if provided
             if type:
                 query = query.eq("type", type)
-            
+
             # Apply pagination and ordering
             result = (
                 query.order("created_at", desc=True)
@@ -1763,24 +1942,241 @@ class DatabaseService:
                     # Parse JSON string back to dict for Pydantic model
                     if isinstance(prompt_data.get("metadata"), str):
                         try:
-                            prompt_data["metadata"] = json.loads(prompt_data["metadata"])
+                            prompt_data["metadata"] = json.loads(
+                                prompt_data["metadata"]
+                            )
                         except json.JSONDecodeError:
                             prompt_data["metadata"] = {}
                     prompts.append(Prompt(**prompt_data))
-            
+
             total_count = result.count if result.count is not None else 0
             return prompts, total_count
 
         except Exception as e:
             raise Exception(f"Database error listing prompts: {str(e)}")
 
-    async def get_system_prompt(self, prompt_type: str, prompt_name: str = "default") -> Optional[str]:
+    async def get_system_prompt(
+        self, prompt_type: str, prompt_name: str = "default"
+    ) -> Optional[str]:
         """Get system prompt content by type and name"""
         try:
             prompt = await self.get_prompt_by_name_and_type(prompt_name, prompt_type)
             return prompt.content if prompt else None
         except Exception as e:
             raise Exception(f"Database error getting system prompt: {str(e)}")
+
+    # Helper methods for batch processing to check what needs to be generated
+    async def get_repositories_needing_ai_summary_or_description(
+        self, limit: int = 100
+    ) -> List[Repository]:
+        """Get repositories with analysis but missing AI summary or description"""
+        try:
+            # Get repositories that have analysis but are missing ai_summary or description
+            result = (
+                self.client.table("repository_analysis")
+                .select("repository_id, ai_summary, description")
+                .order("created_at", desc=False)
+                .execute()
+            )
+
+            repos_needing_ai_generation = []
+            seen_repo_ids = set()
+
+            if result.data:
+                for analysis in result.data:
+                    repo_id = analysis["repository_id"]
+
+                    # Skip if we've already processed this repository
+                    if repo_id in seen_repo_ids:
+                        continue
+                    seen_repo_ids.add(repo_id)
+
+                    # Check if ai_summary or description is missing/None
+                    needs_ai_summary = not analysis.get("ai_summary")
+                    needs_description = not analysis.get("description")
+
+                    if needs_ai_summary or needs_description:
+                        # Get the repository details
+                        repo_result = (
+                            self.client.table("repositories")
+                            .select("*")
+                            .eq("id", repo_id)
+                            .limit(1)
+                            .execute()
+                        )
+
+                        if repo_result.data:
+                            repos_needing_ai_generation.append(
+                                Repository(**repo_result.data[0])
+                            )
+
+                            if len(repos_needing_ai_generation) >= limit:
+                                break
+
+            return repos_needing_ai_generation
+
+        except Exception as e:
+            raise Exception(
+                f"Database error getting repositories needing AI generation: {str(e)}"
+            )
+
+    async def get_repositories_needing_documents_with_ai_ready(
+        self, limit: int = 100
+    ) -> List[Repository]:
+        """Get repositories that have AI summary and description but are missing documents"""
+        try:
+            # Get all repository analysis that have both ai_summary and description
+            analysis_result = (
+                self.client.table("repository_analysis")
+                .select("repository_id, id, ai_summary, description")
+                .not_.is_("ai_summary", "null")
+                .not_.is_("description", "null")
+                .order("created_at", desc=False)
+                .execute()
+            )
+
+            if not analysis_result.data:
+                return []
+
+            # Get all analysis IDs that have documents
+            docs_result = (
+                self.client.table("documents")
+                .select("repository_analysis_id")
+                .execute()
+            )
+
+            documented_analysis_ids = set()
+            if docs_result.data:
+                documented_analysis_ids = {
+                    row["repository_analysis_id"] for row in docs_result.data
+                }
+
+            repos_needing_docs = []
+            seen_repo_ids = set()
+
+            for analysis in analysis_result.data:
+                repo_id = analysis["repository_id"]
+                analysis_id = analysis["id"]
+
+                # Skip if we've already processed this repository or if it has documents
+                if repo_id in seen_repo_ids or analysis_id in documented_analysis_ids:
+                    continue
+                seen_repo_ids.add(repo_id)
+
+                # Check if both ai_summary and description exist and are not empty
+                has_ai_summary = (
+                    analysis.get("ai_summary") and analysis["ai_summary"].strip()
+                )
+                has_description = (
+                    analysis.get("description") and analysis["description"].strip()
+                )
+
+                if has_ai_summary and has_description:
+                    # Get the repository details
+                    repo_result = (
+                        self.client.table("repositories")
+                        .select("*")
+                        .eq("id", repo_id)
+                        .limit(1)
+                        .execute()
+                    )
+
+                    if repo_result.data:
+                        repos_needing_docs.append(Repository(**repo_result.data[0]))
+
+                        if len(repos_needing_docs) >= limit:
+                            break
+
+            return repos_needing_docs
+
+        except Exception as e:
+            raise Exception(
+                f"Database error getting repositories needing documents: {str(e)}"
+            )
+
+    async def get_repositories_with_orphaned_documents(
+        self, limit: int = 100
+    ) -> List[Repository]:
+        """Get repositories that have documents but missing or incomplete repository analysis"""
+        try:
+            # Get all documents and their analysis IDs
+            docs_result = (
+                self.client.table("documents")
+                .select("repository_analysis_id")
+                .execute()
+            )
+
+            if not docs_result.data:
+                return []
+
+            # Get unique analysis IDs from documents
+            analysis_ids_in_docs = list(
+                set(row["repository_analysis_id"] for row in docs_result.data)
+            )
+
+            # Check which of these analysis IDs actually exist in repository_analysis table
+            analysis_result = (
+                self.client.table("repository_analysis")
+                .select("id, repository_id, tree_structure")
+                .in_("id", analysis_ids_in_docs)
+                .execute()
+            )
+
+            existing_analysis_ids = set()
+            incomplete_analysis_repo_ids = set()
+            existing_repo_ids = set()
+
+            if analysis_result.data:
+                for analysis in analysis_result.data:
+                    analysis_id = analysis["id"]
+                    repo_id = analysis["repository_id"]
+                    tree_structure = analysis.get("tree_structure")
+
+                    existing_analysis_ids.add(analysis_id)
+                    existing_repo_ids.add(repo_id)
+
+                    # Check if analysis is incomplete (missing tree_structure)
+                    if not tree_structure:
+                        incomplete_analysis_repo_ids.add(repo_id)
+
+            # Find analysis IDs that are referenced in documents but don't exist
+            orphaned_analysis_ids = set(analysis_ids_in_docs) - existing_analysis_ids
+
+            # Get repository IDs for orphaned analyses (if any exist in some other table)
+            orphaned_repo_ids = set()
+            if orphaned_analysis_ids:
+                # We can't easily map orphaned analysis IDs to repo IDs without the analysis records
+                # So we'll find repositories that might have been affected
+                logger.warning(
+                    f"Found {len(orphaned_analysis_ids)} orphaned analysis IDs in documents"
+                )
+
+            # Combine repo IDs that need regeneration: those with incomplete analysis
+            repo_ids_needing_regen = incomplete_analysis_repo_ids
+
+            # Get repository details for repos that need regeneration
+            repositories_needing_regen = []
+
+            if repo_ids_needing_regen:
+                repos_result = (
+                    self.client.table("repositories")
+                    .select("*")
+                    .in_("id", list(repo_ids_needing_regen))
+                    .order("created_at", desc=False)
+                    .limit(limit)
+                    .execute()
+                )
+
+                if repos_result.data:
+                    for repo_data in repos_result.data:
+                        repositories_needing_regen.append(Repository(**repo_data))
+
+            return repositories_needing_regen[:limit]
+
+        except Exception as e:
+            raise Exception(
+                f"Database error getting repositories with orphaned documents: {str(e)}"
+            )
 
 
 # Global database service instance

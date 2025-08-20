@@ -4,8 +4,10 @@ from uuid import UUID
 
 from .base import DatabaseModel, DatabaseInsertModel, DatabaseUpdateModel, JsonData
 
+
 class RepositoryAnalysis(DatabaseModel):
     """Repository analysis table model"""
+
     repository_id: UUID
     analysis_version: int
     analysis_data: JsonData = None
@@ -21,9 +23,13 @@ class RepositoryAnalysis(DatabaseModel):
     binary_files_skipped: Optional[int] = None
     encoding_errors: Optional[int] = None
     readme_image_src: Optional[str] = None
+    ai_summary: Optional[str] = None
+    description: Optional[str] = None
+
 
 class RepositoryAnalysisInsert(DatabaseInsertModel):
     """Repository analysis insert model"""
+
     repository_id: UUID
     analysis_version: int = 1
     analysis_data: JsonData = None
@@ -39,9 +45,13 @@ class RepositoryAnalysisInsert(DatabaseInsertModel):
     binary_files_skipped: Optional[int] = None
     encoding_errors: Optional[int] = None
     readme_image_src: Optional[str] = None
+    ai_summary: Optional[str] = None
+    description: Optional[str] = None
+
 
 class RepositoryAnalysisUpdate(DatabaseUpdateModel):
     """Repository analysis update model"""
+
     repository_id: Optional[UUID] = None
     analysis_version: Optional[int] = None
     analysis_data: JsonData = None
@@ -58,8 +68,10 @@ class RepositoryAnalysisUpdate(DatabaseUpdateModel):
     encoding_errors: Optional[int] = None
     readme_image_src: Optional[str] = None
 
+
 class RepositoryAnalysisResponse(BaseModel):
     """Repository analysis response model for API"""
+
     id: UUID
     repository_id: UUID
     analysis_version: int
@@ -74,12 +86,14 @@ class RepositoryAnalysisResponse(BaseModel):
     binary_files_skipped: Optional[int] = None
     encoding_errors: Optional[int] = None
     readme_image_src: Optional[str] = None
-    
+
     class Config:
         from_attributes = True
 
+
 class RepositoryAnalysisStats(BaseModel):
     """Repository analysis statistics model"""
+
     total_files_found: Optional[int] = None
     total_directories: Optional[int] = None
     files_processed: Optional[int] = None
@@ -90,8 +104,8 @@ class RepositoryAnalysisStats(BaseModel):
     processing_stats: dict = {
         "large_files_skipped": 0,
         "binary_files_skipped": 0,
-        "encoding_errors": 0
+        "encoding_errors": 0,
     }
-    
+
     class Config:
         from_attributes = True

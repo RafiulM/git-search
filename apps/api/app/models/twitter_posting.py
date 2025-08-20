@@ -91,6 +91,7 @@ class TwitterPostingRequest(BaseModel):
     max_repositories: int = Field(5, ge=1, le=50, description="Maximum number of repositories to post (1-50)")
     delay_between_posts: int = Field(30, ge=10, le=300, description="Delay in seconds between posts (10-300)")
     include_analysis: bool = Field(False, description="Include repository analysis data in tweets")
+    include_media: bool = Field(False, description="Include README image as media attachment in tweets")
     
 class TwitterPostingTaskResponse(BaseModel):
     """Response model for starting Twitter posting task"""

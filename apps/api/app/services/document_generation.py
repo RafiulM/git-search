@@ -22,7 +22,7 @@ class DocumentGenerationService:
 
     async def generate_document_from_summary(
         self,
-        repository_id: UUID,
+        repository_analysis_id: UUID,
         document_type: str,
         repository_summary: str,
         repository_info: Dict[str, Any],
@@ -32,7 +32,7 @@ class DocumentGenerationService:
         Generate a single document of specified type for a repository using the AI summary as input
 
         Args:
-            repository_id: ID of the repository
+            repository_analysis_id: ID of the repository analysis
             document_type: Type of document to generate
             repository_summary: AI-generated repository summary
             repository_info: Repository metadata and statistics
@@ -43,7 +43,7 @@ class DocumentGenerationService:
         """
         try:
             logger.info(
-                f"Generating {document_type} for repository {repository_id} using summary"
+                f"Generating {document_type} for repository analysis {repository_analysis_id} using summary"
             )
 
             # Get the prompt for this document type
@@ -83,7 +83,7 @@ class DocumentGenerationService:
 
             # Create document in database
             doc_data = DocumentInsert(
-                repository_id=repository_id,
+                repository_analysis_id=repository_analysis_id,
                 title=self._generate_document_title(document_type, repository_info),
                 content=document_content,
                 document_type=document_type,
@@ -105,20 +105,20 @@ class DocumentGenerationService:
 
             document = await db_service.create_document(doc_data)
             logger.info(
-                f"Successfully generated {document_type} for repository {repository_id}: {document.id}"
+                f"Successfully generated {document_type} for repository analysis {repository_analysis_id}: {document.id}"
             )
 
             return document
 
         except Exception as e:
             logger.error(
-                f"Error generating {document_type} for repository {repository_id}: {str(e)}"
+                f"Error generating {document_type} for repository analysis {repository_analysis_id}: {str(e)}"
             )
             return None
 
     async def generate_multiple_documents_from_summary(
         self,
-        repository_id: UUID,
+        repository_analysis_id: UUID,
         document_types: List[str],
         repository_summary: str,
         repository_info: Dict[str, Any],
@@ -128,7 +128,7 @@ class DocumentGenerationService:
         Generate multiple documents for a repository using the AI summary as input
 
         Args:
-            repository_id: ID of the repository
+            repository_analysis_id: ID of the repository analysis
             document_types: List of document types to generate
             repository_summary: AI-generated repository summary
             repository_info: Repository metadata and statistics
@@ -138,14 +138,14 @@ class DocumentGenerationService:
             Dictionary mapping document types to generated Document objects (None if failed)
         """
         logger.info(
-            f"Generating {len(document_types)} documents for repository {repository_id} using summary"
+            f"Generating {len(document_types)} documents for repository analysis {repository_analysis_id} using summary"
         )
 
         # Mark previous documents of these types as not current
         for doc_type in document_types:
             try:
-                await db_service.mark_previous_documents_not_current(
-                    repository_id, doc_type
+                await db_service.mark_previous_documents_not_current_by_analysis(
+                    repository_analysis_id, doc_type
                 )
             except Exception as e:
                 logger.warning(
@@ -155,7 +155,7 @@ class DocumentGenerationService:
         # Generate documents concurrently
         tasks = [
             self.generate_document_from_summary(
-                repository_id,
+                repository_analysis_id,
                 doc_type,
                 repository_summary,
                 repository_info,
@@ -176,8 +176,81 @@ class DocumentGenerationService:
             else:
                 document_results[doc_type] = result
 
-        logger.info(f"Completed document generation for repository {repository_id}")
+        logger.info(f"Completed document generation for repository analysis {repository_analysis_id}")
         return document_results
+
+    # Wrapper methods for backward compatibility - these work with repository_id but use latest analysis
+    async def generate_document(
+        self,
+        repository_id: UUID,
+        document_type: str,
+        repository_content: str,
+        repository_info: Dict[str, Any],
+        analysis_data: Optional[Dict[str, Any]] = None,
+    ) -> Optional[Document]:
+        """
+        Generate a single document - wrapper that gets latest analysis and calls generate_document_from_summary
+
+        Args:
+            repository_id: ID of the repository
+            document_type: Type of document to generate
+            repository_content: Repository content (will be treated as summary)
+            repository_info: Repository metadata and statistics  
+            analysis_data: Optional analysis data
+
+        Returns:
+            Generated Document object or None if failed
+        """
+        # Get the latest repository analysis
+        latest_analysis = await db_service.get_latest_repository_analysis(repository_id)
+        if not latest_analysis:
+            logger.error(f"No repository analysis found for repository {repository_id}")
+            return None
+        
+        # Call the from_summary method with the analysis ID
+        return await self.generate_document_from_summary(
+            repository_analysis_id=latest_analysis.id,
+            document_type=document_type,
+            repository_summary=repository_content,
+            repository_info=repository_info,
+            analysis_data=analysis_data,
+        )
+
+    async def generate_multiple_documents(
+        self,
+        repository_id: UUID,
+        document_types: List[str],
+        repository_content: str,
+        repository_info: Dict[str, Any],
+        analysis_data: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Optional[Document]]:
+        """
+        Generate multiple documents - wrapper that gets latest analysis and calls generate_multiple_documents_from_summary
+
+        Args:
+            repository_id: ID of the repository
+            document_types: List of document types to generate
+            repository_content: Repository content (will be treated as summary)
+            repository_info: Repository metadata and statistics
+            analysis_data: Optional analysis data
+
+        Returns:
+            Dictionary mapping document types to generated Document objects (None if failed)
+        """
+        # Get the latest repository analysis
+        latest_analysis = await db_service.get_latest_repository_analysis(repository_id)
+        if not latest_analysis:
+            logger.error(f"No repository analysis found for repository {repository_id}")
+            return {doc_type: None for doc_type in document_types}
+        
+        # Call the from_summary method with the analysis ID
+        return await self.generate_multiple_documents_from_summary(
+            repository_analysis_id=latest_analysis.id,
+            document_types=document_types,
+            repository_summary=repository_content,
+            repository_info=repository_info,
+            analysis_data=analysis_data,
+        )
 
     def _prepare_document_context_from_summary(
         self,

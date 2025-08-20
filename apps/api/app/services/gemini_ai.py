@@ -410,6 +410,125 @@ Individual Chunk Summaries:
                 "processing_stats": {},
             }
 
+    async def generate_short_description(
+        self,
+        summary: str,
+        repository_info: Optional[Dict[str, Any]] = None,
+        max_length: int = 150,
+    ) -> Dict[str, Any]:
+        """
+        Generate a short description from a repository summary using gemini-2.5-pro
+
+        Args:
+            summary: The full repository summary to condense
+            repository_info: Optional repository context information
+            max_length: Maximum length of the short description (default: 150 chars)
+
+        Returns:
+            Dictionary with success status, short description, and metadata
+        """
+        try:
+            logger.info(
+                f"Generating short description from summary ({len(summary)} chars)"
+            )
+
+            # Create system prompt for short description generation
+            system_prompt = f"""You are an expert at creating concise, compelling descriptions from technical content.
+
+Your task is to create a short description (maximum {max_length} characters) from a detailed repository summary.
+
+Requirements:
+1. Keep it under {max_length} characters
+2. Focus on what the project DOES, not how it's built
+3. Make it engaging and clear for developers
+4. Use active voice and present tense
+5. No technical jargon unless essential
+6. Start with a strong verb or "A tool/library/framework that..."
+
+Examples of good short descriptions:
+- "A modern REST API for managing GitHub repositories with AI-powered analysis"
+- "Real-time chat application built with WebSocket and Redis"
+- "CLI tool that converts Markdown files to beautiful PDFs"
+
+Create a short, engaging description that would make a developer want to learn more."""
+
+            # Prepare the user content with repository context
+            user_content = f"""REPOSITORY SUMMARY TO CONDENSE:
+{summary}
+"""
+
+            # Add repository context if available
+            if repository_info:
+                repo_name = repository_info.get("name", "Unknown")
+                repo_author = repository_info.get("author", "Unknown")
+                repo_url = repository_info.get("repository_url", "")
+
+                user_content = f"""REPOSITORY CONTEXT:
+Name: {repo_name}
+Author: {repo_author}
+URL: {repo_url}
+
+{user_content}
+
+Focus on creating a description that represents what "{repo_name}" does in a compelling way."""
+
+            # Generate short description using gemini-2.5-pro
+            response = await asyncio.to_thread(
+                self.client.models.generate_content,
+                model="gemini-2.5-pro",
+                contents=system_prompt + "\n\n" + user_content,
+                config=self.summary_config,
+            )
+
+            if not response or not response.text:
+                return {
+                    "success": False,
+                    "error": "No response from Gemini API",
+                    "short_description": None,
+                    "length": 0,
+                    "model_used": "gemini-2.5-pro",
+                }
+
+            short_description = response.text.strip()
+
+            # Remove quotes if they wrap the entire description
+            if (
+                short_description.startswith('"') and short_description.endswith('"')
+            ) or (
+                short_description.startswith("'") and short_description.endswith("'")
+            ):
+                short_description = short_description[1:-1]
+
+            # Check length and truncate if needed
+            if len(short_description) > max_length:
+                logger.warning(
+                    f"Generated description ({len(short_description)} chars) exceeds max length ({max_length}), truncating"
+                )
+                short_description = short_description[: max_length - 3] + "..."
+
+            logger.info(
+                f"Successfully generated short description: {len(short_description)} characters"
+            )
+
+            return {
+                "success": True,
+                "short_description": short_description,
+                "length": len(short_description),
+                "original_summary_length": len(summary),
+                "model_used": "gemini-2.5-pro",
+                "max_length": max_length,
+            }
+
+        except Exception as e:
+            logger.error(f"Error generating short description: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e),
+                "short_description": None,
+                "length": 0,
+                "model_used": "gemini-2.5-pro",
+            }
+
     async def extract_repositories_from_content(
         self, content: str, website_url: str
     ) -> Dict[str, Any]:

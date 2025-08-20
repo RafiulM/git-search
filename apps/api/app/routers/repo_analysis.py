@@ -3,25 +3,22 @@ from typing import Optional, List
 from uuid import UUID, uuid4
 from datetime import datetime
 import logging
+import asyncio
 
 # Import fungsi dari background_tasks
 from app.services.background_tasks import (
     analyze_repository_task,
+    generate_ai_summary_and_description_task,
+    generate_documents_with_ai_ready_task,
+    comprehensive_repository_processing_task,
     get_task_status,
     create_task,
-    batch_process_repositories_task,
-    post_repository_tweets_task,
     scrape_website_and_extract_repositories_task,
     extract_repo_info,
     upload_image_to_supabase,
 )
-from app.services.github_screenshot import (
-    screenshot_github_readme_smart_sync,
-    screenshot_github_readme_sync,
-)
 from app.services.readme_blob_screenshot import screenshot_readme_blob_sync
 from app.services.image_cropper import (
-    crop_to_square_from_top,
     crop_top_and_crop_to_size,
 )
 
@@ -42,9 +39,7 @@ from app.models import (
     BatchProcessingInsert,
     BatchStatus,
     TwitterPostingRequest,
-    TwitterPostingResponse,
     TwitterPostingTaskResponse,
-    TwitterPostingInsert,
     TwitterPostingStatus,
     SimpleScrapeRequest,
     SimpleScrapeTaskResponse,
@@ -148,6 +143,8 @@ async def get_analysis_result(
                 message=status_info["message"],
                 progress=status_info.get("progress"),
                 error=status_info.get("error"),
+                repo_id=status_info.get("repo_id"),
+                result=status_info.get("result"),
             )
 
         # Get detailed result
@@ -512,7 +509,7 @@ async def start_batch_processing(
     background_tasks: BackgroundTasks,
     db: DatabaseService = Depends(get_database_service),
 ):
-    """Start batch processing of repositories that need analysis/docs"""
+    """Start batch processing of repositories that need analysis/docs/AI summary/description"""
     try:
         # Find repositories that need processing based on request type
         repositories = []
@@ -525,6 +522,21 @@ async def start_batch_processing(
             repositories = await db.get_repositories_without_documents(
                 request.max_repositories
             )
+        elif request.process_type == "ai_summary_and_description":
+            # New process type: repositories with analysis but missing AI summary or description
+            repositories = await db.get_repositories_needing_ai_summary_or_description(
+                request.max_repositories
+            )
+        elif request.process_type == "docs_with_ai_ready":
+            # New process type: repositories with AI summary and description but missing documents
+            repositories = await db.get_repositories_needing_documents_with_ai_ready(
+                request.max_repositories
+            )
+        elif request.process_type == "orphaned_documents":
+            # New process type: repositories with orphaned/incomplete documents that need regeneration
+            repositories = await db.get_repositories_with_orphaned_documents(
+                request.max_repositories
+            )
         else:  # "analysis_and_docs" (default)
             repositories = await db.get_repositories_needing_processing(
                 request.max_repositories
@@ -532,7 +544,8 @@ async def start_batch_processing(
 
         if not repositories:
             raise HTTPException(
-                status_code=404, detail="No repositories found that need processing"
+                status_code=404,
+                detail=f"No repositories found that need {request.process_type}",
             )
 
         # Generate batch name if not provided
@@ -566,8 +579,31 @@ async def start_batch_processing(
             create_task(task_id)
             task_ids.append(task_id)
 
-            # Start background task for repository analysis
-            background_tasks.add_task(analyze_repository_task, task_id, repo.repo_url)
+            # Start appropriate background task based on process type
+            if request.process_type == "analysis_only":
+                # Pure repository analysis only
+                background_tasks.add_task(analyze_repository_task, task_id, repo.repo_url)
+            elif request.process_type == "ai_summary_and_description":
+                background_tasks.add_task(
+                    generate_ai_summary_and_description_task, task_id, repo.repo_url
+                )
+            elif request.process_type == "docs_with_ai_ready":
+                background_tasks.add_task(
+                    generate_documents_with_ai_ready_task, task_id, repo.repo_url
+                )
+            elif request.process_type == "docs_only":
+                # Only generate documents (assuming AI summary/description exist)
+                background_tasks.add_task(
+                    generate_documents_with_ai_ready_task, task_id, repo.repo_url
+                )
+            elif request.process_type == "orphaned_documents":
+                # Regenerate analysis for repositories with orphaned/incomplete documents
+                background_tasks.add_task(analyze_repository_task, task_id, repo.repo_url)
+            else:
+                # Default "analysis_and_docs": comprehensive processing that determines what's needed
+                background_tasks.add_task(
+                    comprehensive_repository_processing_task, task_id, repo.repo_url
+                )
 
         logger.info(f"Started {len(task_ids)} repository analysis tasks")
 
@@ -647,7 +683,7 @@ async def get_repositories_needing_processing(
     process_type: str = "analysis_and_docs",
     db: DatabaseService = Depends(get_database_service),
 ):
-    """Get repositories that need processing (analysis or documents)"""
+    """Get repositories that need processing (analysis, AI summary, description, or documents)"""
     try:
         repositories = []
 
@@ -655,6 +691,16 @@ async def get_repositories_needing_processing(
             repositories = await db.get_repositories_without_analysis(limit)
         elif process_type == "docs_only":
             repositories = await db.get_repositories_without_documents(limit)
+        elif process_type == "ai_summary_and_description":
+            repositories = await db.get_repositories_needing_ai_summary_or_description(
+                limit
+            )
+        elif process_type == "docs_with_ai_ready":
+            repositories = await db.get_repositories_needing_documents_with_ai_ready(
+                limit
+            )
+        elif process_type == "orphaned_documents":
+            repositories = await db.get_repositories_with_orphaned_documents(limit)
         else:  # "analysis_and_docs" (default)
             repositories = await db.get_repositories_needing_processing(limit)
 
@@ -751,101 +797,413 @@ async def get_scraping_task_status(task_id: str):
 
 
 # Twitter Posting Endpoints
-@router.post("/twitter/post", response_model=TwitterPostingTaskResponse)
+@router.post("/twitter/post")
 async def post_repository_tweets(
     request: TwitterPostingRequest,
-    background_tasks: BackgroundTasks,
     db: DatabaseService = Depends(get_database_service),
 ):
-    """Start posting tweets for repositories without Twitter links"""
+    """Post tweets for repositories without Twitter links (synchronous)"""
     try:
-        # Generate job name if not provided
-        job_name = (
-            request.job_name
-            or f"Twitter posting {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}"
+        # Import Twitter service
+        from app.services.twitter_service import twitter_service
+
+        # Generate posting ID for tracking
+        posting_id = str(uuid4())
+
+        logger.info(f"🚀 Starting synchronous Twitter posting {posting_id}")
+        logger.info(
+            f"📊 Parameters: max={request.max_repositories}, delay={request.delay_between_posts}s, analysis={request.include_analysis}, media={request.include_media}"
         )
 
-        # Get count of repositories without Twitter links to validate request
+        # Check if Twitter service is configured
+        logger.info("🔧 Checking Twitter service configuration...")
+        if not twitter_service.is_configured():
+            error_msg = "Twitter service is not configured"
+            logger.error(f"❌ {error_msg}")
+
+            # Run detailed credential validation
+            logger.info("🔍 Running detailed credential validation...")
+            validation_results = twitter_service.validate_credentials()
+
+            logger.info("📋 Credential validation results:")
+            logger.info(
+                f"   Credentials present: {'✅' if validation_results['credentials_present'] else '❌'}"
+            )
+            logger.info(
+                f"   Bearer token valid: {'✅' if validation_results['bearer_token_valid'] else '❌'}"
+            )
+            logger.info(
+                f"   OAuth tokens valid: {'✅' if validation_results['oauth_tokens_valid'] else '❌'}"
+            )
+
+            if validation_results["user_info"]:
+                user_info = validation_results["user_info"]
+                logger.info(
+                    f"   User info: @{user_info['username']} ({user_info['name']})"
+                )
+
+            if validation_results["errors"]:
+                logger.error("🚨 Credential errors:")
+                for error in validation_results["errors"]:
+                    logger.error(f"   - {error}")
+
+            raise HTTPException(
+                status_code=401,
+                detail=f"{error_msg} - check logs for detailed validation results",
+            )
+
+        logger.info("✅ Twitter service is properly configured")
+
+        # Get repositories without Twitter links
+        logger.info(
+            f"🔍 Searching for repositories without Twitter links (limit: {request.max_repositories})..."
+        )
         repositories = await db.get_repositories_without_twitter_links(
             limit=request.max_repositories
         )
 
         if not repositories:
+            logger.warning("⚠️ No repositories found without Twitter links")
             raise HTTPException(
                 status_code=404, detail="No repositories found without Twitter links"
             )
 
-        # Create Twitter posting job record
-        posting_data = TwitterPostingInsert(
-            job_name=job_name,
-            total_repositories=len(repositories),
-            status=TwitterPostingStatus.PENDING,
-        )
+        logger.info(f"📋 Found {len(repositories)} repositories to process:")
+        for i, repo in enumerate(repositories, 1):
+            logger.info(f"  {i}. {repo.name} by {repo.author} - {repo.repo_url}")
 
-        posting_job = await db.create_twitter_posting(posting_data)
-        posting_id = str(posting_job.id)
+        # Initialize results
+        results = {
+            "posting_id": posting_id,
+            "total_repositories": len(repositories),
+            "processed": 0,
+            "successful_posts": 0,
+            "failed_posts": 0,
+            "rate_limited_posts": 0,
+            "posted_tweets": [],
+            "errors": [],
+        }
 
-        # Start the background task
-        background_tasks.add_task(
-            post_repository_tweets_task,
-            posting_id=posting_id,
-            max_repositories=request.max_repositories,
-            delay_between_posts=request.delay_between_posts,
-            include_analysis=request.include_analysis,
-        )
+        # Process each repository synchronously
+        for i, repository in enumerate(repositories):
+            try:
+                logger.info(
+                    f"📝 [{i+1}/{len(repositories)}] Processing repository: {repository.name}"
+                )
 
+                # Prepare repository info for tweet
+                repo_info = {
+                    "id": str(repository.id),
+                    "name": repository.name,
+                    "author": repository.author,
+                    "repo_url": repository.repo_url,
+                    "description": (
+                        f"Repository by {repository.author}"
+                        if repository.author
+                        else "GitHub repository"
+                    ),
+                }
+
+                # If include_analysis is True, try to get repository analysis
+                if request.include_analysis:
+                    logger.info(
+                        "   🔬 Fetching repository analysis for enhanced description..."
+                    )
+                    try:
+                        analysis = await db.get_latest_repository_analysis(
+                            repository.id
+                        )
+                        if analysis:
+                            # First try to use existing description (short description)
+                            if (
+                                hasattr(analysis, "description")
+                                and analysis.description
+                            ):
+                                repo_info["description"] = analysis.description
+                                logger.info(
+                                    f"   ✅ Using existing description ({len(analysis.description)} chars)"
+                                )
+                            # If no short description but we have ai_summary, generate one
+                            elif (
+                                hasattr(analysis, "ai_summary") and analysis.ai_summary
+                            ):
+                                logger.info(
+                                    "   🤖 Generating short description from AI summary..."
+                                )
+                                try:
+                                    from app.services.gemini_ai import gemini_service
+
+                                    repo_context = {
+                                        "name": repository.name,
+                                        "author": repository.author,
+                                        "repository_url": repository.repo_url,
+                                    }
+
+                                    short_desc_result = (
+                                        await gemini_service.generate_short_description(
+                                            summary=analysis.ai_summary,
+                                            repository_info=repo_context,
+                                            max_length=150,
+                                        )
+                                    )
+
+                                    if short_desc_result["success"]:
+                                        repo_info["description"] = short_desc_result[
+                                            "short_description"
+                                        ]
+                                        # Save the generated short description
+                                        try:
+                                            await db.update_repository_analysis(
+                                                analysis.id,
+                                                {
+                                                    "description": short_desc_result[
+                                                        "short_description"
+                                                    ]
+                                                },
+                                            )
+                                            logger.info(
+                                                f"   ✅ Generated and saved description ({short_desc_result['length']} chars)"
+                                            )
+                                        except Exception:
+                                            logger.info(
+                                                f"   ✅ Generated description ({short_desc_result['length']} chars) - could not save"
+                                            )
+                                    else:
+                                        logger.warning(
+                                            f"   ⚠️ Failed to generate short description: {short_desc_result.get('error')}"
+                                        )
+                                        # Fallback to truncated summary
+                                        if (
+                                            hasattr(analysis, "summary")
+                                            and analysis.summary
+                                        ):
+                                            repo_info["description"] = (
+                                                analysis.summary[:150] + "..."
+                                                if len(analysis.summary) > 150
+                                                else analysis.summary
+                                            )
+                                except Exception as gen_error:
+                                    logger.warning(
+                                        f"   ⚠️ Error generating short description: {str(gen_error)}"
+                                    )
+                            # Fallback to regular summary if available
+                            elif hasattr(analysis, "summary") and analysis.summary:
+                                repo_info["description"] = (
+                                    analysis.summary[:150] + "..."
+                                    if len(analysis.summary) > 150
+                                    else analysis.summary
+                                )
+                                logger.info(f"   ✅ Using truncated summary")
+                            else:
+                                logger.info("   ℹ️ No summary or AI summary available")
+                        else:
+                            logger.info("   ℹ️ No analysis available")
+                    except Exception as e:
+                        logger.warning(f"   ⚠️ Could not get analysis: {str(e)}")
+
+                # If include_media is True, try to get README image URL
+                if request.include_media:
+                    logger.info("   🖼️ Fetching README image for media attachment...")
+                    try:
+                        analysis = await db.get_latest_repository_analysis(
+                            repository.id
+                        )
+                        if analysis and analysis.readme_image_src:
+                            repo_info["readme_image_url"] = analysis.readme_image_src
+                            logger.info(
+                                f"   ✅ Found README image: {analysis.readme_image_src}"
+                            )
+                        else:
+                            error_msg = f"README image required but not found for repository {repository.name}"
+                            logger.error(f"   ❌ {error_msg}")
+                            results["errors"].append(
+                                {"repository": repository.name, "error": error_msg}
+                            )
+                            results["failed_posts"] += 1
+                            results["processed"] += 1
+                            continue  # Skip this repository
+                    except Exception as e:
+                        error_msg = f"Could not get README image for repository {repository.name}: {str(e)}"
+                        logger.error(f"   ❌ {error_msg}")
+                        results["errors"].append(
+                            {"repository": repository.name, "error": error_msg}
+                        )
+                        results["failed_posts"] += 1
+                        results["processed"] += 1
+                        continue  # Skip this repository
+
+                # Post tweet
+                logger.info(f"   🐦 Posting tweet to Twitter...")
+                result = await twitter_service.post_repository_tweet(
+                    repo_info, request.include_media
+                )
+
+                # Log the complete Twitter response
+                logger.info(f"   📋 Twitter API Response:")
+                logger.info(f"      Success: {result.get('success', 'Unknown')}")
+                logger.info(f"      Tweet ID: {result.get('tweet_id', 'None')}")
+                logger.info(f"      Tweet URL: {result.get('tweet_url', 'None')}")
+                logger.info(
+                    f"      Media Included: {result.get('included_media', False)}"
+                )
+                logger.info(f"      Media IDs: {result.get('media_ids', 'None')}")
+                logger.info(
+                    f"      Repository ID: {result.get('repository_id', 'None')}"
+                )
+                logger.info(
+                    f"      Repository Name: {result.get('repository_name', 'None')}"
+                )
+                if result.get("error"):
+                    logger.info(f"      Error: {result['error']}")
+                if result.get("tweet_text"):
+                    logger.info(f"      Tweet Text: {result['tweet_text'][:100]}...")
+
+                if result["success"]:
+                    # Update repository analysis with Twitter link (moved from repositories table)
+                    logger.info(
+                        f"   📝 Updating repository analysis with Twitter link..."
+                    )
+                    try:
+                        # Get the latest analysis for this repository
+                        analysis = await db.get_latest_repository_analysis(
+                            repository.id
+                        )
+                        if analysis:
+                            # Update the analysis with Twitter link
+                            await db.update_repository_analysis(
+                                analysis.id, {"twitter_link": result["tweet_url"]}
+                            )
+                            logger.info(
+                                f"   ✅ Updated analysis {analysis.id} with Twitter link"
+                            )
+                        else:
+                            logger.warning(
+                                f"   ⚠️ No analysis found for repository {repository.name} to update with Twitter link"
+                            )
+                    except Exception as update_error:
+                        logger.error(
+                            f"   ❌ Failed to update analysis with Twitter link: {str(update_error)}"
+                        )
+
+                    logger.info(
+                        f"   ✅ Tweet posted successfully! URL: {result['tweet_url']}"
+                    )
+                    if result.get("included_media"):
+                        logger.info("   🖼️ Tweet includes media attachment")
+
+                    results["successful_posts"] += 1
+                    results["posted_tweets"].append(
+                        {
+                            "repository": repository.name,
+                            "tweet_url": result["tweet_url"],
+                            "tweet_id": result.get("tweet_id"),
+                            "included_media": result.get("included_media", False),
+                        }
+                    )
+                else:
+                    error_msg = result.get("error", "Unknown error")
+                    logger.error(f"   ❌ Failed to post tweet: {error_msg}")
+
+                    if "rate limit" in error_msg.lower():
+                        results["rate_limited_posts"] += 1
+
+                    results["failed_posts"] += 1
+                    results["errors"].append(
+                        {"repository": repository.name, "error": error_msg}
+                    )
+
+                results["processed"] += 1
+
+                # Log progress
+                success_rate = (
+                    (results["successful_posts"] / results["processed"] * 100)
+                    if results["processed"] > 0
+                    else 0
+                )
+                logger.info(
+                    f"📊 Progress: {results['processed']}/{len(repositories)} | ✅ {results['successful_posts']} | ❌ {results['failed_posts']} | {success_rate:.1f}%"
+                )
+
+                # Delay between posts (except for the last one)
+                if i < len(repositories) - 1:
+                    logger.info(
+                        f"   ⏳ Waiting {request.delay_between_posts} seconds..."
+                    )
+                    await asyncio.sleep(request.delay_between_posts)
+
+            except Exception as e:
+                error_msg = str(e)
+                logger.error(
+                    f"   💥 Exception while processing {repository.name}: {error_msg}"
+                )
+                results["failed_posts"] += 1
+                results["processed"] += 1
+                results["errors"].append(
+                    {"repository": repository.name, "error": error_msg}
+                )
+
+        # Log final results
+        logger.info("🏁 " + "=" * 60)
+        logger.info(f"🏁 Twitter posting completed!")
+        logger.info(f"📊 Final Results:")
+        logger.info(f"   📋 Total repositories: {len(repositories)}")
+        logger.info(f"   ✅ Successful posts: {results['successful_posts']}")
+        logger.info(f"   ❌ Failed posts: {results['failed_posts']}")
+        logger.info(f"   🚫 Rate limited posts: {results['rate_limited_posts']}")
         logger.info(
-            f"Started Twitter posting task {posting_id} for {len(repositories)} repositories"
+            f"   📈 Success rate: {(results['successful_posts']/len(repositories)*100):.1f}%"
         )
+        logger.info("🏁 " + "=" * 60)
 
-        return TwitterPostingTaskResponse(
-            posting_id=posting_job.id,
-            status=posting_job.status,
-            message=f"Twitter posting job started for {len(repositories)} repositories",
-            total_repositories=len(repositories),
-        )
+        return {
+            "status": "completed",
+            "posting_id": posting_id,
+            "summary": {
+                "total_repositories": results["total_repositories"],
+                "processed": results["processed"],
+                "successful_posts": results["successful_posts"],
+                "failed_posts": results["failed_posts"],
+                "rate_limited_posts": results["rate_limited_posts"],
+                "success_rate": f"{(results['successful_posts']/len(repositories)*100):.1f}%",
+            },
+            "posted_tweets": results["posted_tweets"],
+            "errors": results["errors"],
+        }
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to start Twitter posting job: {str(e)}")
+        logger.error(f"💥 Failed to post Twitter tweets: {str(e)}")
         raise HTTPException(
-            status_code=500, detail=f"Failed to start Twitter posting job: {str(e)}"
+            status_code=500, detail=f"Failed to post Twitter tweets: {str(e)}"
         )
 
 
-@router.get("/twitter/post/{posting_id}", response_model=TwitterPostingResponse)
-async def get_twitter_posting_status(
-    posting_id: UUID, db: DatabaseService = Depends(get_database_service)
-):
-    """Get Twitter posting job status"""
+@router.get("/twitter/post/{posting_id}")
+async def get_twitter_posting_status(posting_id: UUID):
+    """Get Twitter posting job status (mock response since no database table)"""
     try:
-        posting = await db.get_twitter_posting(posting_id)
+        # Since there's no Twitter posting table, return a mock response
+        return {
+            "id": posting_id,
+            "job_name": "Mock Twitter Posting Job",
+            "total_repositories": 0,
+            "processed_repositories": 0,
+            "successful_posts": 0,
+            "failed_posts": 0,
+            "rate_limited_posts": 0,
+            "status": "completed",
+            "repository_ids": [],
+            "posted_tweet_urls": [],
+            "error_message": None,
+            "started_at": None,
+            "completed_at": None,
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow(),
+            "metadata": None,
+            "message": "Twitter posting table does not exist - this is a mock response",
+        }
 
-        if not posting:
-            raise HTTPException(status_code=404, detail="Twitter posting job not found")
-
-        return TwitterPostingResponse(
-            id=posting.id,
-            job_name=posting.job_name,
-            total_repositories=posting.total_repositories,
-            processed_repositories=posting.processed_repositories,
-            successful_posts=posting.successful_posts,
-            failed_posts=posting.failed_posts,
-            rate_limited_posts=posting.rate_limited_posts,
-            status=posting.status,
-            repository_ids=posting.repository_ids,
-            posted_tweet_urls=posting.posted_tweet_urls,
-            error_message=posting.error_message,
-            started_at=posting.started_at,
-            completed_at=posting.completed_at,
-            created_at=posting.created_at,
-            updated_at=posting.updated_at,
-            metadata=posting.metadata,
-        )
-
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Failed to get Twitter posting status: {str(e)}")
         raise HTTPException(
@@ -908,6 +1266,114 @@ async def get_repositories_without_twitter_links(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to get repositories without Twitter links: {str(e)}",
+        )
+
+
+@router.get("/twitter/validate-credentials")
+async def validate_twitter_credentials():
+    """Validate Twitter API credentials for debugging"""
+    try:
+        from app.services.twitter_service import twitter_service
+
+        logger.info("🔍 Validating Twitter credentials...")
+        validation_results = twitter_service.validate_credentials()
+
+        return {
+            "credentials_present": validation_results["credentials_present"],
+            "bearer_token_valid": validation_results["bearer_token_valid"],
+            "oauth_tokens_valid": validation_results["oauth_tokens_valid"],
+            "user_info": validation_results["user_info"],
+            "errors": validation_results["errors"],
+            "is_configured": twitter_service.is_configured(),
+            "message": "Check logs for detailed validation information",
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to validate Twitter credentials: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to validate credentials: {str(e)}"
+        )
+
+
+# AI Generation Endpoints
+@router.post("/repositories/{repo_id}/generate-short-description")
+async def generate_repository_short_description(
+    repo_id: UUID,
+    max_length: int = 150,
+    db: DatabaseService = Depends(get_database_service),
+):
+    """Generate a short description from repository analysis summary using Gemini 2.5 Pro"""
+    try:
+        # Verify repository exists
+        repository = await db.get_repository(repo_id)
+        if not repository:
+            raise HTTPException(status_code=404, detail="Repository not found")
+
+        # Get repository analysis with summary
+        analysis = await db.get_latest_repository_analysis(repo_id)
+        if not analysis or not analysis.ai_summary:
+            raise HTTPException(
+                status_code=404,
+                detail="No AI summary found for this repository - run analysis first",
+            )
+
+        logger.info(f"Generating short description for repository {repository.name}")
+
+        # Import Gemini service
+        from app.services.gemini_ai import gemini_service
+
+        # Prepare repository info for context
+        repository_info = {
+            "name": repository.name,
+            "author": repository.author,
+            "repository_url": repository.repo_url,
+        }
+
+        # Generate short description
+        result = await gemini_service.generate_short_description(
+            summary=analysis.ai_summary,
+            repository_info=repository_info,
+            max_length=max_length,
+        )
+
+        if result["success"]:
+            # Update the analysis with the short description
+            try:
+                await db.update_repository_analysis(
+                    analysis.id, {"description": result["short_description"]}
+                )
+                logger.info(f"Updated analysis {analysis.id} with description")
+            except Exception as update_error:
+                logger.error(
+                    f"Failed to save description to analysis: {str(update_error)}"
+                )
+                # Continue without failing the request
+
+            return {
+                "repository_id": str(repo_id),
+                "repository_name": repository.name,
+                "analysis_id": str(analysis.id),
+                "short_description": result["short_description"],
+                "length": result["length"],
+                "max_length": max_length,
+                "model_used": result["model_used"],
+                "original_summary_length": result["original_summary_length"],
+                "message": "Short description generated successfully",
+            }
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to generate short description: {result.get('error', 'Unknown error')}",
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            f"Failed to generate short description for repository {repo_id}: {str(e)}"
+        )
+        raise HTTPException(
+            status_code=500, detail=f"Failed to generate short description: {str(e)}"
         )
 
 

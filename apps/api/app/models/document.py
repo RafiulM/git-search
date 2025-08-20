@@ -6,7 +6,7 @@ from .base import DatabaseModel, DatabaseInsertModel, DatabaseUpdateModel, JsonD
 
 class Document(DatabaseModel):
     """Document table model"""
-    repository_id: UUID
+    repository_analysis_id: UUID
     title: str
     content: str
     document_type: str
@@ -21,7 +21,7 @@ class Document(DatabaseModel):
 
 class DocumentInsert(DatabaseInsertModel):
     """Document insert model"""
-    repository_id: UUID
+    repository_analysis_id: UUID
     title: str
     content: str
     document_type: str
@@ -36,7 +36,7 @@ class DocumentInsert(DatabaseInsertModel):
 
 class DocumentUpdate(DatabaseUpdateModel):
     """Document update model"""
-    repository_id: Optional[UUID] = None
+    repository_analysis_id: Optional[UUID] = None
     title: Optional[str] = None
     content: Optional[str] = None
     document_type: Optional[str] = None
@@ -52,7 +52,7 @@ class DocumentUpdate(DatabaseUpdateModel):
 class DocumentResponse(BaseModel):
     """Document response model for API"""
     id: UUID
-    repository_id: UUID
+    repository_analysis_id: UUID
     title: str
     content: str
     document_type: str
@@ -66,7 +66,7 @@ class DocumentResponse(BaseModel):
 class DocumentSummary(BaseModel):
     """Document summary model (without content)"""
     id: UUID
-    repository_id: UUID
+    repository_analysis_id: UUID
     title: str
     document_type: str
     description: Optional[str] = None
