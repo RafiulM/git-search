@@ -1,9 +1,12 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from typing import List, Optional
 from app.models import TaskStatusResponse, TaskStatus
 from app.services.background_tasks import get_task_status, task_storage
+from app.services.auth import require_api_key
 
-router = APIRouter()
+router = APIRouter(
+    dependencies=[Depends(require_api_key)]  # Apply API key requirement to all routes in this router
+)
 
 @router.get("/", response_model=List[TaskStatusResponse])
 async def list_tasks(

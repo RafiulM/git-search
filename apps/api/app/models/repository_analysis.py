@@ -20,6 +20,7 @@ class RepositoryAnalysis(DatabaseModel):
     large_files_skipped: Optional[int] = None
     binary_files_skipped: Optional[int] = None
     encoding_errors: Optional[int] = None
+    readme_image_src: Optional[str] = None
 
 class RepositoryAnalysisInsert(DatabaseInsertModel):
     """Repository analysis insert model"""
@@ -37,6 +38,7 @@ class RepositoryAnalysisInsert(DatabaseInsertModel):
     large_files_skipped: Optional[int] = None
     binary_files_skipped: Optional[int] = None
     encoding_errors: Optional[int] = None
+    readme_image_src: Optional[str] = None
 
 class RepositoryAnalysisUpdate(DatabaseUpdateModel):
     """Repository analysis update model"""
@@ -54,6 +56,7 @@ class RepositoryAnalysisUpdate(DatabaseUpdateModel):
     large_files_skipped: Optional[int] = None
     binary_files_skipped: Optional[int] = None
     encoding_errors: Optional[int] = None
+    readme_image_src: Optional[str] = None
 
 class RepositoryAnalysisResponse(BaseModel):
     """Repository analysis response model for API"""
@@ -70,6 +73,7 @@ class RepositoryAnalysisResponse(BaseModel):
     large_files_skipped: Optional[int] = None
     binary_files_skipped: Optional[int] = None
     encoding_errors: Optional[int] = None
+    readme_image_src: Optional[str] = None
     
     class Config:
         from_attributes = True

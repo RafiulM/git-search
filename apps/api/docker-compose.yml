@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    environment:
+      - SUPABASE_URL=${SUPABASE_URL:-https://your-supabase-url.supabase.co}
+      - SUPABASE_KEY=${SUPABASE_KEY:-your-supabase-key}
+      - API_KEY=${API_KEY:-your-api-key}
+      - GOOGLE_AI_API_KEY=${GOOGLE_AI_API_KEY:-your-google-ai-api-key}
+      - FIRECRAWL_API_KEY=${FIRECRAWL_API_KEY:-your-firecrawl-api-key}
+      - TWITTER_CONSUMER_KEY=${TWITTER_CONSUMER_KEY:-}
+      - TWITTER_CONSUMER_SECRET=${TWITTER_CONSUMER_SECRET:-}
+      - TWITTER_ACCESS_TOKEN=${TWITTER_ACCESS_TOKEN:-}
+      - TWITTER_ACCESS_TOKEN_SECRET=${TWITTER_ACCESS_TOKEN_SECRET:-}
+      - TWITTER_BEARER_TOKEN=${TWITTER_BEARER_TOKEN:-}
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:8000}
+    env_file:
+      - .env

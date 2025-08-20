@@ -1,6 +1,102 @@
-# Git-Search Repository Analysis API
+# Git Search API
 
-FastAPI backend for analyzing GitHub repositories using repo2text with background task processing.
+API service for analyzing GitHub repositories and generating documentation.
+
+## Features
+- Analyze GitHub repositories using repo2text
+- Generate AI summaries using Google Gemini
+- Create various documentation formats (README, documentation, social media posts)
+- Batch process multiple repositories
+- Website scraping to extract repository URLs
+- Twitter/X posting of repository information
+
+## Prerequisites
+- Python 3.12
+- Supabase account and project
+- Google AI API key
+- Firecrawl API key (for website scraping)
+- Twitter/X API credentials (for posting tweets)
+
+## Setup
+
+1. Clone the repository:
+   ```bash
+   git clone <repository-url>
+   cd apps/api
+   ```
+
+2. Create a virtual environment:
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+   ```
+
+3. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. Install Playwright browsers:
+   ```bash
+   playwright install chromium
+   ```
+
+5. Create a `.env` file based on `.env.example` and fill in your credentials.
+
+6. Run the application:
+   ```bash
+   uvicorn main:app --reload
+   ```
+
+## Docker Setup
+
+You can also run the application using Docker:
+
+1. Build the Docker image:
+   ```bash
+   docker build -t git-search-api .
+   ```
+
+2. Run the container:
+   ```bash
+   docker run -p 8000:8000 --env-file .env git-search-api
+   ```
+
+Or using docker-compose:
+   ```bash
+   docker-compose up
+   ```
+
+## API Documentation
+
+Once the server is running, you can access the API documentation at:
+- Swagger UI: http://localhost:8000/docs
+- ReDoc: http://localhost:8000/redoc
+
+## Environment Variables
+
+Refer to `.env.example` for all required environment variables.
+
+## Endpoints
+
+- `POST /api/analyze` - Start repository analysis
+- `GET /api/tasks/{task_id}` - Get task status
+- `GET /api/tasks/{task_id}/result` - Get analysis result
+- `POST /api/batch/process` - Start batch processing
+- `POST /api/scrape/website` - Scrape website for repositories
+- `POST /api/twitter/post` - Post repository tweets
+- `POST /api/convert-readme-to-image` - Convert README to image and save to Supabase Storage
+
+## Development
+
+For development with hot reloading:
+```bash
+uvicorn main:app --reload
+```
+
+## License
+
+MIT
 
 ## Setup
 

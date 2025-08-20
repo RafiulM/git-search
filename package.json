@@ -7,7 +7,7 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "pnpm --filter @git-search/web dev",
+    "dev": "concurrently \"pnpm --filter @git-search/web dev\" \"pnpm --filter @git-search/api dev\" --names \"web,api\" --prefix-colors \"cyan,yellow\"",
     "dev:web": "pnpm --filter @git-search/web dev",
     "dev:api": "pnpm --filter @git-search/api dev",
     "build": "pnpm --filter @git-search/web build",
@@ -17,5 +17,7 @@
     "lint": "pnpm --filter @git-search/web lint",
     "type-check": "pnpm --filter @git-search/web type-check"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "concurrently": "^9.2.0"
+  }
 }

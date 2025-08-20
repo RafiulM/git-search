@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "description": "FastAPI backend for Git-Search",
   "scripts": {
-    "dev": "uvicorn main:app --reload --host 0.0.0.0 --port 8000",
-    "start": "uvicorn main:app --host 0.0.0.0 --port 8000"
+    "dev": "python main.py --reload --host 0.0.0.0 --port 8000",
+    "start": "python main.py --host 0.0.0.0 --port 8000"
   },
   "keywords": ["fastapi", "python", "api", "backend"],
   "author": "Git-Search Team",

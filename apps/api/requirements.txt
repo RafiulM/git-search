@@ -33,6 +33,8 @@ python-dotenv==1.1.1
 python-magic==0.4.27
 python-multipart==0.0.20
 PyYAML==6.0.2
+firecrawl-py==1.5.0
+tweepy==4.14.0
 realtime==2.6.0
 
 repo2text @ git+https://github.com/CodeGuide-dev/repo2text.git@fdf67a8416a920747fac34e1398421124365ffdb
@@ -51,6 +53,10 @@ tzdata==2025.2
 urllib3==2.5.0
 uvicorn==0.35.0
 uvloop==0.21.0
+playwright==1.51.0
+Pillow==11.1.0
+nest_asyncio==1.6.0
+markdown==3.7
 
 watchfiles==1.1.0
 wcwidth==0.2.13

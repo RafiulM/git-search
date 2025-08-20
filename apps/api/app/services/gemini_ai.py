@@ -15,38 +15,104 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
+# Import database service
+from app.services.database import db_service
+
+
 class GeminiAIService:
     """Service for interacting with Google Gemini AI models"""
-    
+
     def __init__(self, api_key: Optional[str] = None):
         """Initialize Gemini AI service"""
         self.api_key = api_key or os.getenv("GOOGLE_AI_API_KEY")
         if not self.api_key:
             raise ValueError("Google AI API key is required")
-        
+
         # Initialize the Gemini client
         self.client = genai.Client(api_key=self.api_key)
-        
+
         # Model names
-        self.chunk_model = "gemini-2.0-flash-lite"
+        self.chunk_model = "gemini-2.5.flash-lite"
         self.summary_model = "gemini-2.5-flash"
-        
+
         # Generation config for different use cases
-        self.chunk_config = types.GenerateContentConfig(
-            max_output_tokens=4000,
-            temperature=0.7,
-            top_p=0.9,
-            top_k=40,
-            thinking_config=types.ThinkingConfig(thinking_budget=0)  # Disable thinking
-        )
-        
-        self.summary_config = types.GenerateContentConfig(
-            max_output_tokens=8000,
-            temperature=0.7,
-            top_p=0.9,
-            top_k=40,
-            thinking_config=types.ThinkingConfig(thinking_budget=0)  # Disable thinking
-        )
+        self.chunk_config = types.GenerateContentConfig()
+        self.summary_config = types.GenerateContentConfig()
+        self.extraction_config = types.GenerateContentConfig()
+
+    async def get_system_prompt(
+        self, prompt_type: str, prompt_name: str = "default"
+    ) -> Optional[str]:
+        """
+        Get system prompt from database or return default prompt
+
+        Args:
+            prompt_type: Type of prompt (e.g., "repository_summary", "code_review")
+            prompt_name: Name of prompt (default: "default")
+
+        Returns:
+            Prompt content as string or None if not found
+        """
+        try:
+            # Try to get prompt from database
+            prompt_content = await db_service.get_system_prompt(
+                prompt_type, prompt_name
+            )
+
+            if prompt_content:
+                return prompt_content
+
+            # Return default prompts based on type
+            default_prompts = {
+                "repository_summary": """You are an expert code reviewer and software architect. 
+                Analyze the provided repository content and create a comprehensive summary that helps developers understand:
+                1. What this codebase does (purpose and functionality)
+                2. Key architecture and technology choices
+                3. Main components and how they interact
+                4. Notable patterns, configurations, or design decisions
+                5. Overall code structure and organization
+                
+                Make your summary clear, technical, and actionable for developers who need to understand or work with this codebase.""",
+                "code_review": """You are an expert software engineer conducting a thorough code review. 
+                Analyze the provided code and provide feedback on:
+                1. Code quality and best practices
+                2. Potential bugs or issues
+                3. Performance optimizations
+                4. Security considerations
+                5. Maintainability and readability
+                6. Architecture and design patterns
+                
+                Provide specific, actionable feedback with examples where possible.""",
+                "architecture_analysis": """You are a senior software architect. 
+                Analyze the provided repository and provide a detailed architecture analysis covering:
+                1. System architecture and components
+                2. Technology stack and framework choices
+                3. Data flow and communication patterns
+                4. Scalability and performance considerations
+                5. Security architecture
+                6. Deployment and infrastructure
+                7. Potential improvements or concerns
+                
+                Provide a comprehensive technical analysis with specific examples from the codebase.""",
+                "documentation_generation": """You are a technical documentation specialist. 
+                Create clear, comprehensive documentation based on the provided codebase:
+                1. API documentation (if applicable)
+                2. Installation and setup instructions
+                3. Configuration guide
+                4. Usage examples
+                5. Architecture overview
+                6. Troubleshooting guide
+                
+                Make the documentation accessible to both technical and non-technical users where appropriate.""",
+            }
+
+            return default_prompts.get(prompt_type)
+
+        except Exception as e:
+            logger.warning(
+                f"Error getting system prompt for {prompt_type}/{prompt_name}: {str(e)}"
+            )
+            return None
 
     def chunk_text(self, text: str, max_chars_per_chunk: int = 1500000) -> List[str]:
         """
@@ -70,22 +136,25 @@ class GeminiAIService:
 
                 # Try to find a good breaking point (in order of preference)
                 break_patterns = [
-                    '\n\n',  # Double newlines (paragraph breaks)
-                    '\n=',   # Section headers with equals
-                    '\n-',   # Section headers with dashes
-                    '\nFILE:', # File boundaries in repo2text output
-                    '\nclass ', '\nfunction ', '\nexport ', '\nimport ',  # Code structure breaks
-                    '\n}',   # End of code blocks
-                    '\n',    # Any newline
-                    '. ',    # Sentence endings
-                    ' '      # Word boundaries
+                    "\n\n",  # Double newlines (paragraph breaks)
+                    "\n=",  # Section headers with equals
+                    "\n-",  # Section headers with dashes
+                    "\nFILE:",  # File boundaries in repo2text output
+                    "\nclass ",
+                    "\nfunction ",
+                    "\nexport ",
+                    "\nimport ",  # Code structure breaks
+                    "\n}",  # End of code blocks
+                    "\n",  # Any newline
+                    ". ",  # Sentence endings
+                    " ",  # Word boundaries
                 ]
 
                 for pattern in break_patterns:
                     # Find the last occurrence of the pattern in the search area
                     search_text = text[search_start:end_index]
                     last_occurrence = search_text.rfind(pattern)
-                    
+
                     if last_occurrence != -1:
                         break_point = search_start + last_occurrence + len(pattern)
                         break
@@ -98,22 +167,22 @@ class GeminiAIService:
         return chunks
 
     async def generate_chunk_summary(
-        self, 
-        chunk: str, 
-        chunk_index: int, 
+        self,
+        chunk: str,
+        chunk_index: int,
         total_chunks: int,
         repository_context: str,
-        system_prompt: str
+        system_prompt: str,
     ) -> Dict[str, Any]:
         """Generate summary for a single chunk of repository content"""
         try:
             # Prepare the chunk with context
             chunk_with_context = (
-                repository_context + 
-                f"\nCHUNK {chunk_index + 1}/{total_chunks} CONTENT:\n" + 
-                chunk
+                repository_context
+                + f"\nCHUNK {chunk_index + 1}/{total_chunks} CONTENT:\n"
+                + chunk
             )
-            
+
             # Create the full prompt
             full_prompt = f"""{system_prompt}
 
@@ -129,50 +198,66 @@ Keep your summary comprehensive but concise, and relate it to the overall reposi
                 self.client.models.generate_content,
                 model=self.chunk_model,
                 contents=full_prompt,
-                config=self.chunk_config
+                config=self.chunk_config,
             )
-            
+
             return {
                 "chunk_index": chunk_index + 1,
                 "total_chunks": total_chunks,
                 "summary": response.text,
                 "character_count": len(chunk),
                 "success": True,
-                "error": None
+                "error": None,
             }
-            
+
         except Exception as e:
             logger.error(f"Error processing chunk {chunk_index + 1}: {str(e)}")
-            
+
             fallback_summary = (
                 f"Chunk {chunk_index + 1} processing failed ({str(e)}). "
                 f"This chunk contained {len(chunk):,} characters of repository content "
                 f"that could not be analyzed automatically."
             )
-            
+
             return {
                 "chunk_index": chunk_index + 1,
                 "total_chunks": total_chunks,
                 "summary": fallback_summary,
                 "character_count": len(chunk),
                 "success": False,
-                "error": str(e)
+                "error": str(e),
             }
 
     async def generate_repository_summary(
         self,
         full_text: str,
         repository_info: Dict[str, Any],
-        system_prompt: str
+        system_prompt: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Generate comprehensive repository summary by processing in chunks
         """
         try:
+            # Get system prompt from database if not provided
+            if not system_prompt:
+                system_prompt = await self.get_system_prompt("repository_summary")
+
+            # If still no system prompt, use a basic default
+            if not system_prompt:
+                system_prompt = """You are an expert code reviewer and software architect. 
+                Analyze the provided repository content and create a comprehensive summary that helps developers understand:
+                1. What this codebase does (purpose and functionality)
+                2. Key architecture and technology choices
+                3. Main components and how they interact
+                4. Notable patterns, configurations, or design decisions
+                5. Overall code structure and organization
+                
+                Make your summary clear, technical, and actionable for developers who need to understand or work with this codebase."""
+
             # Create repository context
             stats = repository_info.get("statistics", {})
             structure = repository_info.get("structure", {})
-            
+
             repository_context = f"""
 REPOSITORY OVERVIEW:
 URL: {repository_info.get('repository_url', 'Unknown')}
@@ -195,48 +280,48 @@ REPOSITORY STRUCTURE:
 
 ---
 """
-            
+
             # Split text into chunks
             chunks = self.chunk_text(full_text, 1500000)  # 1.5M chars per chunk
             logger.info(f"Processing {len(chunks)} chunks of repository data")
-            
+
             # Process chunks in parallel
             chunk_tasks = [
                 self.generate_chunk_summary(
-                    chunk, 
-                    index, 
-                    len(chunks),
-                    repository_context,
-                    system_prompt
+                    chunk, index, len(chunks), repository_context, system_prompt
                 )
                 for index, chunk in enumerate(chunks)
             ]
-            
+
             chunk_summaries = await asyncio.gather(*chunk_tasks)
-            
+
             # Separate successful and failed chunks
             successful_chunks = [c for c in chunk_summaries if c["success"]]
             failed_chunks = [c for c in chunk_summaries if not c["success"]]
-            
+
             logger.info(
                 f"Chunk processing complete: {len(successful_chunks)} successful, "
                 f"{len(failed_chunks)} failed out of {len(chunks)} total"
             )
-            
+
             if failed_chunks:
-                logger.warning(f"Failed chunks: {[c['chunk_index'] for c in failed_chunks]}")
-                
+                logger.warning(
+                    f"Failed chunks: {[c['chunk_index'] for c in failed_chunks]}"
+                )
+
                 # Only fail if ALL chunks failed
                 if len(failed_chunks) == len(chunks):
                     raise Exception("All repository chunks failed to process")
-            
+
             # Combine chunk summaries for final summary
-            combined_summaries = "\n\n".join([
-                f"--- Chunk {c['chunk_index']}/{c['total_chunks']} "
-                f"({c['character_count']:,} chars) ---\n{c['summary']}"
-                for c in chunk_summaries
-            ])
-            
+            combined_summaries = "\n\n".join(
+                [
+                    f"--- Chunk {c['chunk_index']}/{c['total_chunks']} "
+                    f"({c['character_count']:,} chars) ---\n{c['summary']}"
+                    for c in chunk_summaries
+                ]
+            )
+
             # Create processing status message
             processing_status = ""
             if failed_chunks:
@@ -247,8 +332,10 @@ REPOSITORY STRUCTURE:
                     f"Please note this limitation in your summary."
                 )
             else:
-                processing_status = f"\n\nAll {len(chunks)} chunks were successfully processed."
-            
+                processing_status = (
+                    f"\n\nAll {len(chunks)} chunks were successfully processed."
+                )
+
             # Create final summary prompt
             final_summary_prompt = f"""You are creating a comprehensive summary of a repository that was analyzed in {len(chunks)} chunks. 
 
@@ -276,7 +363,7 @@ Repository Structure:
 
 Individual Chunk Summaries:
 {combined_summaries}"""
-            
+
             # Limit prompt size if too large
             max_summary_length = 1600000
             if len(final_summary_prompt) > max_summary_length:
@@ -285,15 +372,15 @@ Individual Chunk Summaries:
                     f"truncating to {max_summary_length:,} characters"
                 )
                 final_summary_prompt = final_summary_prompt[:max_summary_length]
-            
+
             # Generate final summary
             final_response = await asyncio.to_thread(
                 self.client.models.generate_content,
                 model=self.summary_model,
                 contents=f"{system_prompt}\n\n{final_summary_prompt}",
-                config=self.summary_config
+                config=self.summary_config,
             )
-            
+
             return {
                 "success": True,
                 "summary": final_response.text,
@@ -306,10 +393,10 @@ Individual Chunk Summaries:
                     "successful_chunks": len(successful_chunks),
                     "failed_chunks": len(failed_chunks),
                     "total_characters": len(full_text),
-                    "final_prompt_length": len(final_summary_prompt)
-                }
+                    "final_prompt_length": len(final_summary_prompt),
+                },
             }
-            
+
         except Exception as e:
             logger.error(f"Error generating repository summary: {str(e)}")
             return {
@@ -320,8 +407,88 @@ Individual Chunk Summaries:
                 "successful_chunks": 0,
                 "failed_chunks": 0,
                 "chunk_summaries": [],
-                "processing_stats": {}
+                "processing_stats": {},
             }
+
+    async def extract_repositories_from_content(
+        self, content: str, website_url: str
+    ) -> Dict[str, Any]:
+        """
+        Extract repository information from website content using structured output
+
+        Args:
+            content: Scraped website content (markdown format)
+            website_url: Original website URL for context
+            schema_class: Pydantic schema class for structured output
+
+        Returns:
+            Dictionary containing extracted repositories and metadata
+        """
+        try:
+            logger.info(
+                f"Extracting repositories from content ({len(content)} chars) from {website_url}"
+            )
+
+            # Create the extraction prompt
+            extraction_prompt = f"""You are an expert at extracting repository information from website content. 
+Your task is to analyze the provided website content and extract ALL Git repository URLs along with any available metadata.
+
+IMPORTANT INSTRUCTIONS:
+1. Look for ANY Git repository URLs (GitHub, GitLab, Bitbucket, etc.)
+2. Extract as much metadata as possible for each repository (name, author, description)
+3. Only include VALID repository URLs that point to actual code repositories
+4. If no repositories are found, return an empty list
+5. Provide a confidence score between 0.0 and 1.0 for each repository
+
+SOURCE WEBSITE: {website_url}
+
+WEBSITE CONTENT TO ANALYZE:
+{content[:100000]}{"... [content truncated]" if len(content) > 100000 else ""}"""
+
+            # Import the ExtractedRepoInfo model for structured output
+            from app.models.simple_scraping import ExtractedRepoInfo
+
+            # Generate structured output using Gemini with Pydantic model
+            response = await asyncio.to_thread(
+                self.client.models.generate_content,
+                model="gemini-2.5-flash",
+                contents=extraction_prompt,
+                config={
+                    "response_mime_type": "application/json",
+                    "response_schema": list[ExtractedRepoInfo],
+                },
+            )
+
+            # Access the parsed response directly
+            if not response.parsed:
+                raise Exception("No response parsed from Gemini")
+
+            extracted_data = response.parsed
+            if not isinstance(extracted_data, list):
+                raise Exception("Response is not a list")
+
+            logger.info(f"Successfully extracted repository data from {website_url}")
+
+            return {
+                "success": True,
+                "extracted_data": extracted_data,
+                "content_length": len(content),
+                "website_url": website_url,
+                "model_used": "gemini-2.0-flash",
+                "error": None,
+            }
+
+        except Exception as e:
+            logger.error(f"Error extracting repositories from {website_url}: {str(e)}")
+            return {
+                "success": False,
+                "extracted_data": None,
+                "content_length": len(content) if content else 0,
+                "website_url": website_url,
+                "model_used": "gemini-2.0-flash",
+                "error": str(e),
+            }
+
 
 # Create a singleton instance
 gemini_service = GeminiAIService()

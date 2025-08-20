@@ -12,18 +12,18 @@ import {
   FileText,
   Zap,
   Database,
-  Calendar,
-  ExternalLink,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useFeaturedRepositories } from "@/hooks/use-featured-repositories";
+import { RepositoryCards } from "@/components/repository-cards";
+import { ViewToggle } from "@/components/view-toggle";
 
 export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useState<"list" | "grid">("list");
   const router = useRouter();
   const { data: featuredRepositories, isLoading, error } = useFeaturedRepositories(4);
 
@@ -34,45 +34,6 @@ export default function Home() {
     }
   };
 
-  const formatNumber = (num: number) => {
-    if (num >= 1000000) {
-      return (num / 1000000).toFixed(1) + 'M';
-    }
-    if (num >= 1000) {
-      return (num / 1000).toFixed(1) + 'k';
-    }
-    return num.toString();
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  };
-
-  const formatBytes = (bytes: number) => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
-
-  // Extract owner/repo from GitHub URL
-  const getOwnerRepoFromUrl = (repoUrl: string) => {
-    try {
-      const url = new URL(repoUrl);
-      const pathParts = url.pathname.split('/').filter(Boolean);
-      if (pathParts.length >= 2) {
-        return `${pathParts[0]}/${pathParts[1]}`;
-      }
-      return '';
-    } catch {
-      return '';
-    }
-  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-cyan-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
@@ -80,6 +41,12 @@ export default function Home() {
       <div className="text-center py-12 sm:py-16 relative px-4">
         <div className="absolute top-4 right-4 sm:top-6 sm:right-6">
           <div className="flex items-center gap-2 sm:gap-3">
+            <Link href="/favorites" className="text-sm text-muted-foreground hover:text-foreground px-3 py-2 rounded-md hover:bg-muted transition-colors">
+              Favorites
+            </Link>
+            <Link href="/dashboard" className="text-sm text-muted-foreground hover:text-foreground px-3 py-2 rounded-md hover:bg-muted transition-colors">
+              Dashboard
+            </Link>
             <ThemeToggle />
           </div>
         </div>
@@ -118,17 +85,20 @@ export default function Home() {
       <main className="container mx-auto px-4 sm:px-6 pb-12 sm:pb-8 max-w-5xl">
         {/* Featured Repositories - Moved to Top */}
         <div className="mb-16">
-          <div className="text-center mb-8">
-            <h2 className="text-2xl font-bold mb-2">Featured Repositories</h2>
-            <p className="text-muted-foreground">
-              Popular repositories with comprehensive AI-focused analysis
-            </p>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+            <div className="text-center sm:text-left">
+              <h2 className="text-2xl font-bold mb-2">Featured Repositories</h2>
+              <p className="text-muted-foreground">
+                Popular repositories with comprehensive AI-focused analysis
+              </p>
+            </div>
+            <ViewToggle viewMode={viewMode} onViewModeChange={setViewMode} />
           </div>
           
-          <div className="space-y-4">
-            {isLoading ? (
-              // Loading skeletons
-              Array.from({ length: 4 }).map((_, index) => (
+          {isLoading ? (
+            // Loading skeletons
+            <div className={viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" : "space-y-4"}>
+              {Array.from({ length: 4 }).map((_, index) => (
                 <Card key={index} className="hover:shadow-lg transition-shadow">
                   <CardContent className="p-4">
                     <div className="space-y-3">
@@ -139,135 +109,38 @@ export default function Home() {
                         <Skeleton className="h-5 w-16" />
                         <Skeleton className="h-5 w-16" />
                       </div>
-                      <div className="grid grid-cols-4 gap-3 p-3">
+                      <div className={viewMode === "grid" ? "grid grid-cols-2 gap-2" : "grid grid-cols-4 gap-3 p-3"}>
                         {Array.from({ length: 4 }).map((_, i) => (
-                          <Skeleton key={i} className="h-12 w-full" />
+                          <Skeleton key={i} className={viewMode === "grid" ? "h-10 w-full" : "h-12 w-full"} />
                         ))}
                       </div>
                     </div>
                   </CardContent>
                 </Card>
-              ))
-            ) : error ? (
-              // Error state
-              <Card>
-                <CardContent className="text-center py-8">
-                  <p className="text-muted-foreground">
-                    Unable to load featured repositories. Please try again later.
-                  </p>
-                </CardContent>
-              </Card>
-            ) : featuredRepositories && featuredRepositories.length > 0 ? (
-              // Real data
-              featuredRepositories.map((repo) => (
-                <Card key={repo.id} className="hover:shadow-lg transition-shadow">
-                  <CardContent>
-                    <div className="flex-1">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
-                        <div className="flex items-center gap-2">
-                          <Link 
-                            href={`/repository/${getOwnerRepoFromUrl(repo.repo_url)}`}
-                            className="text-lg font-semibold text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-                          >
-                            {repo.name}
-                          </Link>
-                          <a
-                            href={repo.repo_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-gray-400 hover:text-gray-600"
-                          >
-                            <ExternalLink className="w-4 h-4" />
-                          </a>
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                          <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                            <div className="flex items-center gap-1">
-                              <Calendar className="w-3 h-3" />
-                              {formatDate(repo.updated_at)}
-                            </div>
-                          </div>
-                          <Link href={`/repository/${getOwnerRepoFromUrl(repo.repo_url)}`}>
-                            <Button variant="outline" size="sm">
-                              <BarChart3 className="w-4 h-4 mr-1" />
-                              View Analysis
-                            </Button>
-                          </Link>
-                        </div>
-                      </div>
-                    
-                      <p className="text-muted-foreground text-sm mb-2 line-clamp-2">
-                        {repo.description || 'No description available'}
-                      </p>
-
-                      <div className="flex flex-wrap gap-1 mb-3">
-                        {repo.author && (
-                          <Badge variant="secondary" className="text-xs">
-                            {repo.author}
-                          </Badge>
-                        )}
-                        {repo.branch && (
-                          <Badge variant="outline" className="text-xs">
-                            {repo.branch}
-                          </Badge>
-                        )}
-                      </div>
-
-                      {/* Statistics with Icons */}
-                      <div className="grid grid-cols-4 gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded">
-                        <div className="flex items-center gap-2">
-                          <FileText className="w-4 h-4 text-blue-600" />
-                          <div>
-                            <div className="text-sm font-semibold text-slate-600">
-                              {formatNumber(repo.stats?.total_lines || 0)}
-                            </div>
-                            <div className="text-xs text-muted-foreground">Lines</div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Database className="w-4 h-4 text-blue-600" />
-                          <div>
-                            <div className="text-sm font-semibold text-slate-600">
-                              {formatNumber(repo.stats?.total_files_found || 0)}
-                            </div>
-                            <div className="text-xs text-muted-foreground">Files</div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <BarChart3 className="w-4 h-4 text-blue-600" />
-                          <div>
-                            <div className="text-sm font-semibold text-slate-600">
-                              {formatBytes(repo.stats?.estimated_size_bytes || 0)}
-                            </div>
-                            <div className="text-xs text-muted-foreground">Size</div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Zap className="w-4 h-4 text-blue-600" />
-                          <div>
-                            <div className="text-sm font-semibold text-slate-600">
-                              {formatNumber(repo.stats?.estimated_tokens || 0)}
-                            </div>
-                            <div className="text-xs text-muted-foreground">Tokens</div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            ) : (
-              // No data state
-              <Card>
-                <CardContent className="text-center py-8">
-                  <p className="text-muted-foreground">
-                    No featured repositories available. Start by analyzing some repositories!
-                  </p>
-                </CardContent>
-              </Card>
-            )}
-          </div>
+              ))}
+            </div>
+          ) : error ? (
+            // Error state
+            <Card>
+              <CardContent className="text-center py-8">
+                <p className="text-muted-foreground">
+                  Unable to load featured repositories. Please try again later.
+                </p>
+              </CardContent>
+            </Card>
+          ) : featuredRepositories && featuredRepositories.length > 0 ? (
+            // Real data with new component
+            <RepositoryCards repositories={featuredRepositories} viewMode={viewMode} />
+          ) : (
+            // No data state
+            <Card>
+              <CardContent className="text-center py-8">
+                <p className="text-muted-foreground">
+                  No featured repositories available. Start by analyzing some repositories!
+                </p>
+              </CardContent>
+            </Card>
+          )}
 
           <div className="text-center mt-8">
             <Link href="/search">
