@@ -770,26 +770,34 @@ class DatabaseService:
     ) -> List[Repository]:
         """Get repositories that don't have analysis or documents yet"""
         try:
-            # Query repositories that don't have any analysis
-            repos_without_analysis = (
-                self.client.table("repositories")
-                .select("*")
-                .not_.in_(
-                    "id",
-                    self.client.table("repository_analysis")
-                    .select("repository_id")
-                    .execute()
-                    .data
-                    or [],
-                )
-                .order("created_at", desc=False)  # Process oldest first
+            # First get all repository IDs that have analysis
+            analysis_result = (
+                self.client.table("repository_analysis")
+                .select("repository_id")
+                .execute()
+            )
+
+            analyzed_repo_ids = []
+            if analysis_result.data:
+                analyzed_repo_ids = [
+                    row["repository_id"] for row in analysis_result.data
+                ]
+
+            # Then get repositories not in that list
+            query = self.client.table("repositories").select("*")
+
+            if analyzed_repo_ids:
+                query = query.not_.in_("id", analyzed_repo_ids)
+
+            result = (
+                query.order("created_at", desc=False)  # Process oldest first
                 .limit(limit)
                 .execute()
             )
 
             repositories = []
-            if repos_without_analysis.data:
-                for repo in repos_without_analysis.data:
+            if result.data:
+                for repo in result.data:
                     repositories.append(Repository(**repo))
 
             return repositories

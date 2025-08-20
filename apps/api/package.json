@@ -4,6 +4,7 @@
   "description": "FastAPI backend for Git-Search",
   "scripts": {
     "dev": "python main.py --reload --host 0.0.0.0 --port 8000",
+    "dev:docker": "docker-compose -f docker-compose.dev.yml up",
     "start": "python main.py --host 0.0.0.0 --port 8000"
   },
   "keywords": ["fastapi", "python", "api", "backend"],

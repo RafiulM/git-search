@@ -32,7 +32,7 @@ class GeminiAIService:
         self.client = genai.Client(api_key=self.api_key)
 
         # Model names
-        self.chunk_model = "gemini-2.5.flash-lite"
+        self.chunk_model = "gemini-2.0-flash"
         self.summary_model = "gemini-2.5-flash"
 
         # Generation config for different use cases
@@ -282,7 +282,7 @@ REPOSITORY STRUCTURE:
 """
 
             # Split text into chunks
-            chunks = self.chunk_text(full_text, 1500000)  # 1.5M chars per chunk
+            chunks = self.chunk_text(full_text, 1200000)  # 1.2M chars per chunk
             logger.info(f"Processing {len(chunks)} chunks of repository data")
 
             # Process chunks in parallel
@@ -451,7 +451,7 @@ WEBSITE CONTENT TO ANALYZE:
             # Generate structured output using Gemini with Pydantic model
             response = await asyncio.to_thread(
                 self.client.models.generate_content,
-                model="gemini-2.5-flash",
+                model="gemini-2.0-flash",
                 contents=extraction_prompt,
                 config={
                     "response_mime_type": "application/json",

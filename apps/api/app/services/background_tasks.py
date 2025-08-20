@@ -33,6 +33,8 @@ from app.services.twitter_service import twitter_service
 from app.services.document_generation import document_generation_service
 from app.services.simple_markdown_to_image import simple_markdown_to_image_sync, get_default_branch
 from app.services.github_screenshot import screenshot_github_readme_smart_sync
+from app.services.readme_blob_screenshot import screenshot_readme_blob_sync
+from app.services.image_cropper import crop_top_and_crop_to_size
 from app.models import (
     RepositoryInsert,
     RepositoryAnalysisInsert,
@@ -268,26 +270,33 @@ async def analyze_repository_task(task_id: str, github_url: str):
         )
 
         # Read the generated output file to get the full content
-        output_file_path = result["output_file"]
+        output_file_path = result.get("output_file", "")
         repo_content = ""
         if os.path.exists(output_file_path):
             with open(output_file_path, "r", encoding="utf-8") as f:
                 repo_content = f.read()
 
         # Prepare statistics from repo2text result
+        # Use files_processed as fallback for total_files if not available
+        files_count = result.get("total_files", result.get("files_processed", 0))
+        
+        # Debug logging for repo2text result keys
+        logger.debug(f"repo2text result keys: {list(result.keys())}")
+        logger.debug(f"Using files_count: {files_count} (from total_files or files_processed)")
+        
         stats = {
-            "files_processed": result["files_processed"],
-            "binary_files_skipped": result["binary_files_skipped"],
-            "large_files_skipped": result["large_files_skipped"],
-            "encoding_errors": result["encoding_errors"],
-            "total_characters": result["total_characters"],
-            "total_lines": result["total_lines"],
-            "total_files": result["total_files"],
-            "total_directories": result["total_directories"],
+            "files_processed": result.get("files_processed", 0),
+            "binary_files_skipped": result.get("binary_files_skipped", 0),
+            "large_files_skipped": result.get("large_files_skipped", 0),
+            "encoding_errors": result.get("encoding_errors", 0),
+            "total_characters": result.get("total_characters", 0),
+            "total_lines": result.get("total_lines", 0),
+            "total_files": files_count,
+            "total_directories": result.get("total_directories", 0),
             "estimated_tokens": int(
-                result["total_characters"] / 4
+                result.get("total_characters", 0) / 4
             ),  # Rough token estimate
-            "total_size_bytes": result["total_characters"],
+            "total_size_bytes": result.get("total_characters", 0),
         }
 
         # Extract tree structure from repo2text result
@@ -365,43 +374,44 @@ async def analyze_repository_task(task_id: str, github_url: str):
         # Process README to image and upload to Supabase
         readme_image_url = None
         try:
-            # Fetch README from GitHub
-            readme_content = get_github_readme(repo_info["owner"], repo_info["repo_name"])
-            
-            if readme_content:
-                # Create temporary file for image
-                with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_img:
-                    image_path = tmp_img.name
-                
-                try:
-                    # Convert markdown to image with dark mode support
-                    logger.info(f"Creating README image for {repo_info['full_name']} with dark mode support")
-                    success = simple_markdown_to_image_sync(
-                        readme_content,
-                        image_path,
-                        repo_info["owner"],
-                        repo_info["repo_name"],
-                        get_default_branch(repo_info["owner"], repo_info["repo_name"]),
-                        dark_mode=False  # Default to light mode for consistency with existing behavior
+            # Create temporary file for image
+            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_img:
+                image_path = tmp_img.name
+
+            try:
+                # Take README blob screenshot with narrow width and minimal scrolling
+                success = screenshot_readme_blob_sync(
+                    repo_info["owner"],
+                    repo_info["repo_name"],
+                    image_path,
+                    width=850,  # Narrow width to avoid side cropping
+                    scroll_pixels=200,  # Scroll 200 pixels to get past file navigation
+                    auto_detect_branch=True,  # Try main/master branches
+                )
+
+                if not success:
+                    logger.warning(f"Failed to create README image for {repo_info['full_name']}")
+                    readme_image_url = None
+                else:
+                    # Crop the image by 260px from top and then crop to 850x850 from top-left
+                    crop_success = crop_top_and_crop_to_size(
+                        image_path, top_crop=260, size=(850, 850)
                     )
-                    
-                    if not success:
-                        logger.warning(f"Failed to create README image for {repo_info['full_name']}")
+                    if not crop_success:
+                        logger.warning(f"Failed to crop image for {repo_info['full_name']}")
                         readme_image_url = None
                     else:
                         # Upload image to Supabase only if conversion was successful
                         readme_image_url = upload_image_to_supabase(image_path, repo_info['owner'], repo_info['repo_name'])
-                    
-                    if readme_image_url:
-                        logger.info(f"README image uploaded successfully for {repo_info['full_name']}")
-                    else:
-                        logger.warning(f"Failed to upload README image for {repo_info['full_name']}")
-                finally:
-                    # Clean up temporary image file
-                    if os.path.exists(image_path):
-                        os.unlink(image_path)
-            else:
-                logger.info(f"No README found for {repo_info['full_name']}")
+                
+                if readme_image_url:
+                    logger.info(f"README image uploaded successfully for {repo_info['full_name']}")
+                else:
+                    logger.warning(f"Failed to upload README image for {repo_info['full_name']}")
+            finally:
+                # Clean up temporary image file
+                if os.path.exists(image_path):
+                    os.unlink(image_path)
         except Exception as readme_error:
             logger.error(f"Error processing README for {repo_info['full_name']}: {str(readme_error)}")
             

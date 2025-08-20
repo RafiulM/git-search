@@ -62,10 +62,22 @@ You can also run the application using Docker:
    docker run -p 8000:8000 --env-file .env git-search-api
    ```
 
-Or using docker-compose:
+### Production Mode
+Using docker-compose:
    ```bash
    docker-compose up
    ```
+
+### Development Mode (with hot reloading)
+Using docker-compose.dev.yml:
+   ```bash
+   docker-compose -f docker-compose.dev.yml up
+   ```
+
+This development setup includes:
+- Hot reloading enabled (`--reload` flag)
+- Volume mounting for live file watching
+- Development port mapping (8000:8000)
 
 ## API Documentation
 

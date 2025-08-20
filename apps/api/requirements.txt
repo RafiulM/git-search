@@ -37,7 +37,7 @@ firecrawl-py==1.5.0
 tweepy==4.14.0
 realtime==2.6.0
 
-repo2text @ git+https://github.com/CodeGuide-dev/repo2text.git@fdf67a8416a920747fac34e1398421124365ffdb
+git+https://github.com/CodeGuide-dev/repo2text.git
 requests==2.32.4
 six==1.17.0
 smmap==5.0.2
