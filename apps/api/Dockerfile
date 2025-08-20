@@ -54,7 +54,7 @@ ENV LANG=C.UTF-8
 ENV LC_ALL=C.UTF-8
 
 # Expose port
-EXPOSE $API_PORT
+EXPOSE 8009
 
 # Run the application
-CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port $API_PORT"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8009"]
