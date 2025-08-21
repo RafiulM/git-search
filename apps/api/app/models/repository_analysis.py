@@ -25,6 +25,7 @@ class RepositoryAnalysis(DatabaseModel):
     readme_image_src: Optional[str] = None
     ai_summary: Optional[str] = None
     description: Optional[str] = None
+    forked_repo_url: Optional[str] = None
 
 
 class RepositoryAnalysisInsert(DatabaseInsertModel):
@@ -47,6 +48,7 @@ class RepositoryAnalysisInsert(DatabaseInsertModel):
     readme_image_src: Optional[str] = None
     ai_summary: Optional[str] = None
     description: Optional[str] = None
+    forked_repo_url: Optional[str] = None
 
 
 class RepositoryAnalysisUpdate(DatabaseUpdateModel):
@@ -67,6 +69,9 @@ class RepositoryAnalysisUpdate(DatabaseUpdateModel):
     binary_files_skipped: Optional[int] = None
     encoding_errors: Optional[int] = None
     readme_image_src: Optional[str] = None
+    ai_summary: Optional[str] = None
+    description: Optional[str] = None
+    forked_repo_url: Optional[str] = None
 
 
 class RepositoryAnalysisResponse(BaseModel):
@@ -86,6 +91,9 @@ class RepositoryAnalysisResponse(BaseModel):
     binary_files_skipped: Optional[int] = None
     encoding_errors: Optional[int] = None
     readme_image_src: Optional[str] = None
+    ai_summary: Optional[str] = None
+    description: Optional[str] = None
+    forked_repo_url: Optional[str] = None
 
     class Config:
         from_attributes = True

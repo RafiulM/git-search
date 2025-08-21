@@ -4,7 +4,14 @@ from typing import Dict, List, Optional, Any
 from uuid import UUID
 
 from app.services.database import db_service
-from app.services.gemini_ai import gemini_service
+from app.services.ai_generation_service import ai_generation_service
+from app.models.ai_config import (
+    AIProvider,
+    AIConfig,
+    OpenAIModel,
+    AIModelConfig,
+    GenerationRequest,
+)
 from app.models import DocumentInsert, Document
 
 logger = logging.getLogger(__name__)
@@ -47,39 +54,39 @@ class DocumentGenerationService:
             )
 
             # Get the prompt for this document type
-            prompt_name = f"{document_type}_generation"
-            system_prompt = await gemini_service.get_system_prompt(
-                "documentation_generation", prompt_name
-            )
-
-            # If no specific prompt found, use a default one based on document type
-            if not system_prompt:
-                system_prompt = self._get_default_prompt_for_type(document_type)
+            system_prompt = self._get_default_prompt_for_type(document_type)
 
             # Prepare context for the AI using the summary
             context = self._prepare_document_context_from_summary(
                 document_type, repository_summary, repository_info, analysis_data
             )
 
-            # Generate document content using Gemini
-            response = await asyncio.to_thread(
-                gemini_service.client.models.generate_content,
-                model=gemini_service.summary_model,
-                contents=f"{system_prompt}\n\n{context}",
-                config=gemini_service.summary_config,
+            # Create OpenAI configuration for document generation
+            ai_config = AIConfig(
+                provider=AIProvider.OPENAI,
+                model=OpenAIModel.O4_MINI,
+                config=AIModelConfig(
+                    max_completion_tokens=10000,  # Longer documents need more tokens
+                ),
             )
 
-            if not response or not response.candidates:
-                raise Exception("Invalid response from Gemini AI")
+            # Create generation request
+            generation_request = GenerationRequest(
+                prompt=context, system_prompt=system_prompt, ai_config=ai_config
+            )
 
-            candidate = response.candidates[0]
-            if not candidate.content or not candidate.content.parts:
-                raise Exception("Invalid response content from Gemini AI")
+            # Generate document content using OpenAI
+            response = await ai_generation_service.generate(generation_request)
 
-            document_content = candidate.content.parts[0].text
+            if not response.success:
+                raise Exception(
+                    f"Failed to generate document content: {response.error}"
+                )
+
+            document_content = response.content
 
             if not document_content:
-                raise Exception("No document content generated from Gemini AI")
+                raise Exception("No document content generated from OpenAI")
 
             # Create document in database
             doc_data = DocumentInsert(
@@ -90,15 +97,18 @@ class DocumentGenerationService:
                 description=self._generate_document_description(document_type),
                 version=1,
                 is_current=True,
-                generated_by="gemini-2.5-pro",
-                model_used=gemini_service.summary_model,
+                generated_by="openai",
+                model_used=str(ai_config.model),
                 metadata={
                     "source": "ai_generated_from_summary",
                     "document_type": document_type,
                     "generation_stats": {
                         "content_length": len(repository_summary),
                         "prompt_type": "documentation_generation",
-                        "prompt_name": prompt_name,
+                        "ai_provider": str(ai_config.provider),
+                        "model_used": str(ai_config.model),
+                        "tokens_used": response.tokens_used,
+                        "processing_time": response.processing_time,
                     },
                 },
             )
@@ -176,7 +186,9 @@ class DocumentGenerationService:
             else:
                 document_results[doc_type] = result
 
-        logger.info(f"Completed document generation for repository analysis {repository_analysis_id}")
+        logger.info(
+            f"Completed document generation for repository analysis {repository_analysis_id}"
+        )
         return document_results
 
     # Wrapper methods for backward compatibility - these work with repository_id but use latest analysis
@@ -195,7 +207,7 @@ class DocumentGenerationService:
             repository_id: ID of the repository
             document_type: Type of document to generate
             repository_content: Repository content (will be treated as summary)
-            repository_info: Repository metadata and statistics  
+            repository_info: Repository metadata and statistics
             analysis_data: Optional analysis data
 
         Returns:
@@ -206,7 +218,7 @@ class DocumentGenerationService:
         if not latest_analysis:
             logger.error(f"No repository analysis found for repository {repository_id}")
             return None
-        
+
         # Call the from_summary method with the analysis ID
         return await self.generate_document_from_summary(
             repository_analysis_id=latest_analysis.id,
@@ -242,7 +254,7 @@ class DocumentGenerationService:
         if not latest_analysis:
             logger.error(f"No repository analysis found for repository {repository_id}")
             return {doc_type: None for doc_type in document_types}
-        
+
         # Call the from_summary method with the analysis ID
         return await self.generate_multiple_documents_from_summary(
             repository_analysis_id=latest_analysis.id,

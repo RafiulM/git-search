@@ -31,6 +31,7 @@ from app.services.gemini_ai import gemini_service
 from app.services.firecrawl_service import firecrawl_service
 from app.services.twitter_service import twitter_service
 from app.services.document_generation import document_generation_service
+from app.services.github_service import github_service
 from app.services.simple_markdown_to_image import (
     simple_markdown_to_image_sync,
     get_default_branch,
@@ -311,12 +312,37 @@ async def analyze_repository_task(task_id: str, github_url: str):
         update_task_status(
             task_id,
             TaskStatus.STARTED,
+            "Forking repository",
+            70,
+            repo_id=str(repo_id),
+        )
+
+        # Fork the repository before analysis
+        forked_repo_url = None
+        try:
+            logger.info(f"Attempting to fork repository: {github_url}")
+            fork_result = await github_service.fork_repository(github_url)
+            if fork_result["success"]:
+                forked_repo_url = fork_result["forked_url"]
+                logger.info(f"Successfully forked repository to: {forked_repo_url}")
+            else:
+                logger.warning(
+                    f"Failed to fork repository: {fork_result.get('error', 'Unknown error')}"
+                )
+        except Exception as fork_error:
+            logger.error(f"Error during repository forking: {str(fork_error)}")
+            # Continue with analysis even if forking fails
+
+        # Update task state
+        update_task_status(
+            task_id,
+            TaskStatus.STARTED,
             "Saving analysis to database",
             75,
             repo_id=str(repo_id),
         )
 
-        # Create repository analysis entry
+        # Create repository analysis entry with forked repo URL
         analysis_data = RepositoryAnalysisInsert(
             repository_id=repo_id,
             analysis_version=1,
@@ -332,6 +358,7 @@ async def analyze_repository_task(task_id: str, github_url: str):
             large_files_skipped=stats["large_files_skipped"],
             binary_files_skipped=stats["binary_files_skipped"],
             encoding_errors=stats["encoding_errors"],
+            forked_repo_url=forked_repo_url,
         )
 
         analysis = await db_service.create_repository_analysis(analysis_data)
@@ -572,12 +599,29 @@ async def analyze_repository_task(task_id: str, github_url: str):
                 )
 
                 # Check if we have both AI summary and short description before generating documents
-                has_ai_summary = analysis.ai_summary and analysis.ai_summary.strip()
-                has_description = analysis.description and analysis.description.strip()
-                
+                updated_analysis = await db_service.get_repository_analysis(analysis.id)
+
+                if not updated_analysis:
+                    logger.error(
+                        f"Repository {repo_id} has no analysis, skipping document generation"
+                    )
+                    raise Exception(
+                        f"Repository {repo_id} has no analysis, skipping document generation"
+                    )
+
+                has_ai_summary = (
+                    updated_analysis.ai_summary and updated_analysis.ai_summary.strip()
+                )
+                has_description = (
+                    updated_analysis.description
+                    and updated_analysis.description.strip()
+                )
+
                 if has_ai_summary and has_description:
-                    logger.info(f"Repository {repo_id} has both AI summary and description, proceeding with document generation")
-                    
+                    logger.info(
+                        f"Repository {repo_id} has both AI summary and description, proceeding with document generation"
+                    )
+
                     # Generate additional documents using the document generation service
                     try:
                         # Generate multiple documents from the summary
@@ -610,9 +654,15 @@ async def analyze_repository_task(task_id: str, github_url: str):
                         )
                         # Continue without failing the entire task
                 else:
-                    logger.warning(f"Repository {repo_id} is missing AI summary or description - skipping document generation")
-                    logger.info(f"  has_ai_summary: {has_ai_summary}, has_description: {has_description}")
-                    generated_documents["document_generation_skipped"] = "missing_ai_summary_or_description"
+                    logger.warning(
+                        f"Repository {repo_id} is missing AI summary or description - skipping document generation"
+                    )
+                    logger.info(
+                        f"  has_ai_summary: {has_ai_summary}, has_description: {has_description}"
+                    )
+                    generated_documents["document_generation_skipped"] = (
+                        "missing_ai_summary_or_description"
+                    )
             else:
                 logger.warning(
                     f"AI summary generation failed for repo {repo_id}: {summary_result.get('error', 'Unknown error')}"
@@ -1254,34 +1304,78 @@ async def post_repository_tweets_task(
                     ),
                 }
 
-                # If include_analysis is True, try to get repository analysis
-                if include_analysis:
-                    logger.info(
-                        "   🔬 Fetching repository analysis for enhanced description..."
+                # Always try to get repository analysis for short description (REQUIRED)
+                logger.info(
+                    "   🔬 Fetching repository analysis for description (REQUIRED)..."
+                )
+                try:
+                    analysis = await db_service.get_latest_repository_analysis(
+                        repository.id
                     )
-                    try:
-                        analysis = await db_service.get_latest_repository_analysis(
-                            repository.id
+
+                    description_found = False
+
+                    # First priority: Use the dedicated short description if available
+                    if (
+                        analysis
+                        and analysis.description
+                        and analysis.description.strip()
+                    ):
+                        original_desc = repo_info["description"]
+                        repo_info["description"] = analysis.description.strip()
+                        description_found = True
+                        logger.info(
+                            f"   ✅ Using AI-generated short description (was: '{original_desc}', now: '{repo_info['description'][:50]}...')"
                         )
-                        if analysis and analysis.summary:
-                            # Add summary to description (truncated)
-                            original_desc = repo_info["description"]
-                            repo_info["description"] = (
-                                analysis.summary[:150] + "..."
-                                if len(analysis.summary) > 150
-                                else analysis.summary
-                            )
-                            logger.info(
-                                f"   ✅ Enhanced description from analysis (was: '{original_desc}', now: '{repo_info['description'][:50]}...')"
-                            )
-                        else:
-                            logger.info(
-                                "   ℹ️ No analysis summary available, using default description"
-                            )
-                    except Exception as e:
-                        logger.warning(
-                            f"   ⚠️ Could not get analysis for repository {repository.name}: {str(e)}"
+                    # Second priority: If include_analysis is True, use summary as fallback
+                    elif include_analysis and analysis and analysis.summary:
+                        original_desc = repo_info["description"]
+                        repo_info["description"] = (
+                            analysis.summary[:150] + "..."
+                            if len(analysis.summary) > 150
+                            else analysis.summary
                         )
+                        description_found = True
+                        logger.info(
+                            f"   ✅ Using analysis summary as description (was: '{original_desc}', now: '{repo_info['description'][:50]}...')"
+                        )
+
+                    # ERROR: No meaningful description available
+                    if not description_found:
+                        error_msg = f"Repository {repository.name} (ID: {repository.id}) has no AI-generated short description or analysis summary available. Cannot post to Twitter without meaningful description."
+                        logger.error(f"   ❌ {error_msg}")
+
+                        # Update posting record with failure
+                        await db_service.update_twitter_posting(
+                            posting_id,
+                            {
+                                "processed_repositories": processed_repositories + 1,
+                                "failed_posts": failed_posts + 1,
+                                "error_message": error_msg,
+                            },
+                        )
+
+                        failed_posts += 1
+                        processed_repositories += 1
+                        continue  # Skip this repository and move to next
+
+                except Exception as e:
+                    error_msg = f"Could not get analysis for repository {repository.name}: {str(e)}"
+                    logger.error(f"   ❌ {error_msg}")
+
+                    # Update posting record with failure
+                    await db_service.update_twitter_posting(
+                        posting_id,
+                        {
+                            "processed_repositories": processed_repositories + 1,
+                            "failed_posts": failed_posts + 1,
+                            "error_message": error_msg,
+                        },
+                    )
+
+                    failed_posts += 1
+                    processed_repositories += 1
+                    continue  # Skip this repository and move to next
 
                 # If include_media is True, try to get README image URL
                 if include_media:
@@ -1451,8 +1545,10 @@ async def post_repository_tweets_task(
 
 async def generate_ai_summary_and_description_task(task_id: str, github_url: str):
     """Background task to generate AI summary and description for repositories that have analysis but are missing these fields"""
-    logger.info(f"Starting AI summary/description generation task {task_id} for {github_url}")
-    
+    logger.info(
+        f"Starting AI summary/description generation task {task_id} for {github_url}"
+    )
+
     try:
         # Update task state
         update_task_status(
@@ -1461,24 +1557,30 @@ async def generate_ai_summary_and_description_task(task_id: str, github_url: str
             "Finding repository and analysis",
             10,
         )
-        
+
         # Find the repository
         existing_repo = await db_service.get_repository_by_url(github_url)
         if not existing_repo:
             raise Exception(f"Repository not found for URL: {github_url}")
-            
+
         repo_id = existing_repo.id
         repo_info = {
             "repo_name": existing_repo.name,
             "owner": existing_repo.author,
-            "full_name": f"{existing_repo.author}/{existing_repo.name}" if existing_repo.author else existing_repo.name,
+            "full_name": (
+                f"{existing_repo.author}/{existing_repo.name}"
+                if existing_repo.author
+                else existing_repo.name
+            ),
         }
-        
+
         # Get the latest repository analysis
         analysis = await db_service.get_latest_repository_analysis(repo_id)
         if not analysis:
-            raise Exception(f"No analysis found for repository {repo_info['full_name']}")
-            
+            raise Exception(
+                f"No analysis found for repository {repo_info['full_name']}"
+            )
+
         # Update task state
         update_task_status(
             task_id,
@@ -1487,13 +1589,15 @@ async def generate_ai_summary_and_description_task(task_id: str, github_url: str
             20,
             repo_id=str(repo_id),
         )
-        
+
         # Check what needs to be generated
         needs_ai_summary = not analysis.ai_summary or not analysis.ai_summary.strip()
         needs_description = not analysis.description or not analysis.description.strip()
-        
-        logger.info(f"Repository {repo_info['full_name']}: needs_ai_summary={needs_ai_summary}, needs_description={needs_description}")
-        
+
+        logger.info(
+            f"Repository {repo_info['full_name']}: needs_ai_summary={needs_ai_summary}, needs_description={needs_description}"
+        )
+
         if not needs_ai_summary and not needs_description:
             # Nothing to generate, task completed
             update_task_status(
@@ -1507,10 +1611,10 @@ async def generate_ai_summary_and_description_task(task_id: str, github_url: str
                     "message": "AI summary and description already exist",
                     "repository_id": str(repo_id),
                     "analysis_id": str(analysis.id),
-                }
+                },
             )
             return
-            
+
         # Get the repository content from documents
         update_task_status(
             task_id,
@@ -1519,13 +1623,17 @@ async def generate_ai_summary_and_description_task(task_id: str, github_url: str
             30,
             repo_id=str(repo_id),
         )
-        
-        documents = await db_service.get_documents_by_repository(repo_id, "repository_analysis")
+
+        documents = await db_service.get_documents_by_repository(
+            repo_id, "repository_analysis"
+        )
         if not documents:
-            raise Exception(f"No repository analysis content found for {repo_info['full_name']}")
-            
+            raise Exception(
+                f"No repository analysis content found for {repo_info['full_name']}"
+            )
+
         repo_content = documents[0].content
-        
+
         # Prepare repository info for AI processing
         repository_info = {
             "repository_url": github_url,
@@ -1542,9 +1650,9 @@ async def generate_ai_summary_and_description_task(task_id: str, github_url: str
                 "total_directories": analysis.total_directories or 0,
             },
         }
-        
+
         generated_data = {}
-        
+
         # Generate AI summary if needed
         if needs_ai_summary:
             update_task_status(
@@ -1554,31 +1662,39 @@ async def generate_ai_summary_and_description_task(task_id: str, github_url: str
                 50,
                 repo_id=str(repo_id),
             )
-            
+
             try:
                 # Get system prompt from database or use default
-                system_prompt = await gemini_service.get_system_prompt("repository_summary")
-                
+                system_prompt = await gemini_service.get_system_prompt(
+                    "repository_summary"
+                )
+
                 # Generate AI summary using Gemini
                 summary_result = await gemini_service.generate_summary_from_text(
                     full_text=repo_content,
                     repository_info=repository_info,
                     system_prompt=system_prompt,
                 )
-                
+
                 if summary_result and summary_result.get("success"):
                     ai_summary = summary_result["summary"]
                     generated_data["ai_summary"] = ai_summary
-                    logger.info(f"AI summary generated successfully for {repo_info['full_name']} ({len(ai_summary)} chars)")
+                    logger.info(
+                        f"AI summary generated successfully for {repo_info['full_name']} ({len(ai_summary)} chars)"
+                    )
                 else:
-                    logger.warning(f"Failed to generate AI summary for {repo_info['full_name']}: {summary_result.get('error', 'Unknown error')}")
-                    
+                    logger.warning(
+                        f"Failed to generate AI summary for {repo_info['full_name']}: {summary_result.get('error', 'Unknown error')}"
+                    )
+
             except Exception as ai_error:
-                logger.error(f"Error generating AI summary for {repo_info['full_name']}: {str(ai_error)}")
+                logger.error(
+                    f"Error generating AI summary for {repo_info['full_name']}: {str(ai_error)}"
+                )
         else:
             # Use existing AI summary
             generated_data["ai_summary"] = analysis.ai_summary
-            
+
         # Generate description if needed and we have AI summary
         if needs_description and generated_data.get("ai_summary"):
             update_task_status(
@@ -1588,27 +1704,33 @@ async def generate_ai_summary_and_description_task(task_id: str, github_url: str
                 70,
                 repo_id=str(repo_id),
             )
-            
+
             try:
                 short_desc_result = await gemini_service.generate_short_description(
                     summary=generated_data["ai_summary"],
                     repository_info=repository_info,
                     max_length=150,
                 )
-                
+
                 if short_desc_result["success"]:
                     short_description = short_desc_result["short_description"]
                     generated_data["description"] = short_description
-                    logger.info(f"Short description generated successfully for {repo_info['full_name']} ({short_desc_result['length']} chars)")
+                    logger.info(
+                        f"Short description generated successfully for {repo_info['full_name']} ({short_desc_result['length']} chars)"
+                    )
                 else:
-                    logger.warning(f"Failed to generate short description for {repo_info['full_name']}: {short_desc_result.get('error')}")
-                    
+                    logger.warning(
+                        f"Failed to generate short description for {repo_info['full_name']}: {short_desc_result.get('error')}"
+                    )
+
             except Exception as desc_error:
-                logger.error(f"Error generating short description for {repo_info['full_name']}: {str(desc_error)}")
+                logger.error(
+                    f"Error generating short description for {repo_info['full_name']}: {str(desc_error)}"
+                )
         elif analysis.description:
             # Use existing description
             generated_data["description"] = analysis.description
-            
+
         # Update the repository analysis with generated data
         if generated_data:
             update_task_status(
@@ -1618,14 +1740,18 @@ async def generate_ai_summary_and_description_task(task_id: str, github_url: str
                 90,
                 repo_id=str(repo_id),
             )
-            
+
             try:
                 await db_service.update_repository_analysis(analysis.id, generated_data)
-                logger.info(f"Updated repository analysis {analysis.id} with generated data")
+                logger.info(
+                    f"Updated repository analysis {analysis.id} with generated data"
+                )
             except Exception as update_error:
-                logger.error(f"Failed to update repository analysis: {str(update_error)}")
+                logger.error(
+                    f"Failed to update repository analysis: {str(update_error)}"
+                )
                 raise update_error
-        
+
         # Task completed successfully
         result_data = {
             "status": "completed",
@@ -1638,27 +1764,35 @@ async def generate_ai_summary_and_description_task(task_id: str, github_url: str
                 "full_name": repo_info["full_name"],
             },
             "generated": {
-                "ai_summary": bool(generated_data.get("ai_summary") and needs_ai_summary),
-                "description": bool(generated_data.get("description") and needs_description),
+                "ai_summary": bool(
+                    generated_data.get("ai_summary") and needs_ai_summary
+                ),
+                "description": bool(
+                    generated_data.get("description") and needs_description
+                ),
             },
             "progress": 100,
         }
-        
+
         update_task_status(
             task_id,
             TaskStatus.SUCCESS,
             "AI summary and description generation completed",
             100,
             repo_id=str(repo_id),
-            result=result_data
+            result=result_data,
         )
-        
-        logger.info(f"Completed AI summary/description generation for {repo_info['full_name']}")
-        
+
+        logger.info(
+            f"Completed AI summary/description generation for {repo_info['full_name']}"
+        )
+
     except Exception as e:
         error_msg = str(e)
-        logger.error(f"AI summary/description generation failed for {github_url}: {error_msg}")
-        
+        logger.error(
+            f"AI summary/description generation failed for {github_url}: {error_msg}"
+        )
+
         # Update task state with error
         update_task_status(
             task_id,
@@ -1670,8 +1804,10 @@ async def generate_ai_summary_and_description_task(task_id: str, github_url: str
 
 async def generate_documents_with_ai_ready_task(task_id: str, github_url: str):
     """Background task to generate documents for repositories that have AI summary and description ready"""
-    logger.info(f"Starting document generation task (AI ready) {task_id} for {github_url}")
-    
+    logger.info(
+        f"Starting document generation task (AI ready) {task_id} for {github_url}"
+    )
+
     try:
         # Update task state
         update_task_status(
@@ -1680,24 +1816,30 @@ async def generate_documents_with_ai_ready_task(task_id: str, github_url: str):
             "Finding repository and analysis",
             10,
         )
-        
+
         # Find the repository
         existing_repo = await db_service.get_repository_by_url(github_url)
         if not existing_repo:
             raise Exception(f"Repository not found for URL: {github_url}")
-            
+
         repo_id = existing_repo.id
         repo_info = {
             "repo_name": existing_repo.name,
             "owner": existing_repo.author,
-            "full_name": f"{existing_repo.author}/{existing_repo.name}" if existing_repo.author else existing_repo.name,
+            "full_name": (
+                f"{existing_repo.author}/{existing_repo.name}"
+                if existing_repo.author
+                else existing_repo.name
+            ),
         }
-        
+
         # Get the latest repository analysis
         analysis = await db_service.get_latest_repository_analysis(repo_id)
         if not analysis:
-            raise Exception(f"No analysis found for repository {repo_info['full_name']}")
-            
+            raise Exception(
+                f"No analysis found for repository {repo_info['full_name']}"
+            )
+
         # Update task state
         update_task_status(
             task_id,
@@ -1706,21 +1848,29 @@ async def generate_documents_with_ai_ready_task(task_id: str, github_url: str):
             20,
             repo_id=str(repo_id),
         )
-        
+
         # Check if AI summary and description are available
         has_ai_summary = analysis.ai_summary and analysis.ai_summary.strip()
         has_description = analysis.description and analysis.description.strip()
-        
-        logger.info(f"Repository {repo_info['full_name']}: has_ai_summary={has_ai_summary}, has_description={has_description}")
-        
+
+        logger.info(
+            f"Repository {repo_info['full_name']}: has_ai_summary={has_ai_summary}, has_description={has_description}"
+        )
+
         if not has_ai_summary or not has_description:
-            raise Exception(f"Repository {repo_info['full_name']} is missing required AI summary or description. Cannot generate documents.")
-            
+            raise Exception(
+                f"Repository {repo_info['full_name']} is missing required AI summary or description. Cannot generate documents."
+            )
+
         # Check if documents already exist
-        existing_documents = await db_service.get_documents_by_repository_analysis(analysis.id)
+        existing_documents = await db_service.get_documents_by_repository_analysis(
+            analysis.id
+        )
         if existing_documents:
-            logger.info(f"Repository {repo_info['full_name']} already has {len(existing_documents)} documents")
-            
+            logger.info(
+                f"Repository {repo_info['full_name']} already has {len(existing_documents)} documents"
+            )
+
             # Task completed - documents already exist
             update_task_status(
                 task_id,
@@ -1734,10 +1884,10 @@ async def generate_documents_with_ai_ready_task(task_id: str, github_url: str):
                     "repository_id": str(repo_id),
                     "analysis_id": str(analysis.id),
                     "existing_documents": len(existing_documents),
-                }
+                },
             )
             return
-            
+
         # Update task state
         update_task_status(
             task_id,
@@ -1746,7 +1896,7 @@ async def generate_documents_with_ai_ready_task(task_id: str, github_url: str):
             50,
             repo_id=str(repo_id),
         )
-        
+
         # Prepare repository info for document generation
         repository_info = {
             "repository_url": github_url,
@@ -1763,12 +1913,12 @@ async def generate_documents_with_ai_ready_task(task_id: str, github_url: str):
                 "total_directories": analysis.total_directories or 0,
             },
         }
-        
+
         analysis_data = {
             "tree_structure": analysis.tree_structure,
             "stats": repository_info["statistics"],
         }
-        
+
         # Generate documents using the document generation service
         try:
             document_results = await document_generation_service.generate_multiple_documents_from_summary(
@@ -1778,23 +1928,29 @@ async def generate_documents_with_ai_ready_task(task_id: str, github_url: str):
                 repository_info=repository_info,
                 analysis_data=analysis_data,
             )
-            
+
             # Count successful and failed generations
             successful_docs = {}
             failed_docs = []
-            
+
             for doc_type, document in document_results.items():
                 if document:
                     successful_docs[doc_type] = str(document.id)
-                    logger.info(f"Generated {doc_type} for {repo_info['full_name']}: {document.id}")
+                    logger.info(
+                        f"Generated {doc_type} for {repo_info['full_name']}: {document.id}"
+                    )
                 else:
                     failed_docs.append(doc_type)
-                    logger.warning(f"Failed to generate {doc_type} for {repo_info['full_name']}")
-                    
+                    logger.warning(
+                        f"Failed to generate {doc_type} for {repo_info['full_name']}"
+                    )
+
         except Exception as doc_error:
-            logger.error(f"Document generation error for {repo_info['full_name']}: {str(doc_error)}")
+            logger.error(
+                f"Document generation error for {repo_info['full_name']}: {str(doc_error)}"
+            )
             raise doc_error
-        
+
         # Update task state
         update_task_status(
             task_id,
@@ -1803,7 +1959,7 @@ async def generate_documents_with_ai_ready_task(task_id: str, github_url: str):
             90,
             repo_id=str(repo_id),
         )
-        
+
         # Task completed successfully
         result_data = {
             "status": "completed",
@@ -1822,22 +1978,26 @@ async def generate_documents_with_ai_ready_task(task_id: str, github_url: str):
             "total_requested": len(document_generation_service.DEFAULT_DOCUMENT_TYPES),
             "progress": 100,
         }
-        
+
         update_task_status(
             task_id,
             TaskStatus.SUCCESS,
             f"Document generation completed: {len(successful_docs)} successful, {len(failed_docs)} failed",
             100,
             repo_id=str(repo_id),
-            result=result_data
+            result=result_data,
         )
-        
-        logger.info(f"Completed document generation for {repo_info['full_name']}: {len(successful_docs)} successful, {len(failed_docs)} failed")
-        
+
+        logger.info(
+            f"Completed document generation for {repo_info['full_name']}: {len(successful_docs)} successful, {len(failed_docs)} failed"
+        )
+
     except Exception as e:
         error_msg = str(e)
-        logger.error(f"Document generation (AI ready) failed for {github_url}: {error_msg}")
-        
+        logger.error(
+            f"Document generation (AI ready) failed for {github_url}: {error_msg}"
+        )
+
         # Update task state with error
         update_task_status(
             task_id,
@@ -1849,8 +2009,10 @@ async def generate_documents_with_ai_ready_task(task_id: str, github_url: str):
 
 async def comprehensive_repository_processing_task(task_id: str, github_url: str):
     """Background task for comprehensive repository processing - determines what needs to be done and does it"""
-    logger.info(f"Starting comprehensive repository processing task {task_id} for {github_url}")
-    
+    logger.info(
+        f"Starting comprehensive repository processing task {task_id} for {github_url}"
+    )
+
     try:
         # Update task state
         update_task_status(
@@ -1859,7 +2021,7 @@ async def comprehensive_repository_processing_task(task_id: str, github_url: str
             "Analyzing repository state",
             5,
         )
-        
+
         # Find the repository
         existing_repo = await db_service.get_repository_by_url(github_url)
         if not existing_repo:
@@ -1867,53 +2029,73 @@ async def comprehensive_repository_processing_task(task_id: str, github_url: str
             # Repository doesn't exist - run full analysis
             await analyze_repository_task(task_id, github_url)
             return
-            
+
         repo_id = existing_repo.id
         repo_info = {
             "repo_name": existing_repo.name,
             "owner": existing_repo.author,
-            "full_name": f"{existing_repo.author}/{existing_repo.name}" if existing_repo.author else existing_repo.name,
+            "full_name": (
+                f"{existing_repo.author}/{existing_repo.name}"
+                if existing_repo.author
+                else existing_repo.name
+            ),
         }
-        
+
         # Get the latest repository analysis
         analysis = await db_service.get_latest_repository_analysis(repo_id)
         if not analysis:
-            logger.info(f"Repository exists but has no analysis, will run full analysis: {repo_info['full_name']}")
+            logger.info(
+                f"Repository exists but has no analysis, will run full analysis: {repo_info['full_name']}"
+            )
             # Repository exists but no analysis - run full analysis
             await analyze_repository_task(task_id, github_url)
             return
-            
+
         # Check if there are documents that reference a repository_analysis_id that doesn't exist
         # This can happen if analysis was deleted but documents remain
-        documents_for_repo = await db_service.get_documents_by_repository_analysis(analysis.id)
-        
+        documents_for_repo = await db_service.get_documents_by_repository_analysis(
+            analysis.id
+        )
+
         # Also check if there are any documents in the table that reference this repository's analysis
         # but the analysis might be corrupted or incomplete
         try:
             # Try to get all documents that might reference analyses for this repository
-            all_analyses_for_repo = await db_service.list_repository_analyses(repo_id, skip=0, limit=1000)
+            all_analyses_for_repo = await db_service.list_repository_analyses(
+                repo_id, skip=0, limit=1000
+            )
             analyses_list = all_analyses_for_repo[0] if all_analyses_for_repo else []
-            
+
             # Check if any analysis exists but is missing critical data
             if analysis and not analysis.tree_structure:
-                logger.warning(f"Repository {repo_info['full_name']} has analysis but missing tree_structure - regenerating")
+                logger.warning(
+                    f"Repository {repo_info['full_name']} has analysis but missing tree_structure - regenerating"
+                )
                 await analyze_repository_task(task_id, github_url)
                 return
-                
+
             # Check if analysis exists but no repository analysis document exists
-            repo_analysis_docs = await db_service.get_documents_by_repository_analysis(analysis.id, "repository_analysis")
+            repo_analysis_docs = await db_service.get_documents_by_repository_analysis(
+                analysis.id, "repository_analysis"
+            )
             if not repo_analysis_docs:
-                logger.warning(f"Repository {repo_info['full_name']} has analysis record but no repository analysis document - regenerating")
+                logger.warning(
+                    f"Repository {repo_info['full_name']} has analysis record but no repository analysis document - regenerating"
+                )
                 await analyze_repository_task(task_id, github_url)
                 return
-                
+
         except Exception as doc_check_error:
-            logger.warning(f"Error checking document consistency for {repo_info['full_name']}: {str(doc_check_error)}")
+            logger.warning(
+                f"Error checking document consistency for {repo_info['full_name']}: {str(doc_check_error)}"
+            )
             # If we can't verify document consistency, regenerate to be safe
-            logger.info(f"Regenerating analysis due to document consistency check failure: {repo_info['full_name']}")
+            logger.info(
+                f"Regenerating analysis due to document consistency check failure: {repo_info['full_name']}"
+            )
             await analyze_repository_task(task_id, github_url)
             return
-            
+
         # Update task state
         update_task_status(
             task_id,
@@ -1922,40 +2104,50 @@ async def comprehensive_repository_processing_task(task_id: str, github_url: str
             15,
             repo_id=str(repo_id),
         )
-        
+
         # Check what needs to be generated
         needs_ai_summary = not analysis.ai_summary or not analysis.ai_summary.strip()
         needs_description = not analysis.description or not analysis.description.strip()
-        
+
         # Check if documents exist
-        existing_documents = await db_service.get_documents_by_repository_analysis(analysis.id)
+        existing_documents = await db_service.get_documents_by_repository_analysis(
+            analysis.id
+        )
         needs_documents = len(existing_documents) == 0
-        
+
         logger.info(f"Repository {repo_info['full_name']} status:")
         logger.info(f"  needs_ai_summary: {needs_ai_summary}")
-        logger.info(f"  needs_description: {needs_description}")  
+        logger.info(f"  needs_description: {needs_description}")
         logger.info(f"  needs_documents: {needs_documents}")
         logger.info(f"  existing_documents: {len(existing_documents)}")
-        
+
         # Determine processing path
         if needs_ai_summary or needs_description:
-            logger.info(f"Repository {repo_info['full_name']} needs AI summary/description generation")
+            logger.info(
+                f"Repository {repo_info['full_name']} needs AI summary/description generation"
+            )
             # Generate AI summary and/or description
             await generate_ai_summary_and_description_task(task_id, github_url)
-            
+
             # After generating AI summary/description, check if we also need documents
             if needs_documents:
-                logger.info(f"Repository {repo_info['full_name']} will also need documents after AI generation")
+                logger.info(
+                    f"Repository {repo_info['full_name']} will also need documents after AI generation"
+                )
                 # Note: Documents will be generated in the next batch run since AI data is now available
                 # We don't generate documents in the same task to avoid complexity
-        
+
         elif needs_documents:
-            logger.info(f"Repository {repo_info['full_name']} has AI data but needs documents")
+            logger.info(
+                f"Repository {repo_info['full_name']} has AI data but needs documents"
+            )
             # Has AI summary and description, but missing documents
             await generate_documents_with_ai_ready_task(task_id, github_url)
-            
+
         else:
-            logger.info(f"Repository {repo_info['full_name']} appears to be fully processed")
+            logger.info(
+                f"Repository {repo_info['full_name']} appears to be fully processed"
+            )
             # Repository appears to be fully processed
             update_task_status(
                 task_id,
@@ -1968,16 +2160,22 @@ async def comprehensive_repository_processing_task(task_id: str, github_url: str
                     "message": "Repository is already fully processed",
                     "repository_id": str(repo_id),
                     "analysis_id": str(analysis.id),
-                    "has_ai_summary": bool(analysis.ai_summary and analysis.ai_summary.strip()),
-                    "has_description": bool(analysis.description and analysis.description.strip()),
+                    "has_ai_summary": bool(
+                        analysis.ai_summary and analysis.ai_summary.strip()
+                    ),
+                    "has_description": bool(
+                        analysis.description and analysis.description.strip()
+                    ),
                     "document_count": len(existing_documents),
-                }
+                },
             )
-        
+
     except Exception as e:
         error_msg = str(e)
-        logger.error(f"Comprehensive repository processing failed for {github_url}: {error_msg}")
-        
+        logger.error(
+            f"Comprehensive repository processing failed for {github_url}: {error_msg}"
+        )
+
         # Update task state with error
         update_task_status(
             task_id,

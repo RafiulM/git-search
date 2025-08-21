@@ -150,55 +150,139 @@ class TwitterService:
         
         return results
     
-    def generate_repository_tweet(self, repo_info: Dict[str, Any]) -> str:
-        """Generate a tweet text for a repository"""
+    def generate_repository_thread(self, repo_info: Dict[str, Any]) -> Dict[str, str]:
+        """Generate a Twitter thread for a repository - main tweet + reply with link"""
         try:
             name = repo_info.get("name", "Unknown")
             author = repo_info.get("author", "")
             repo_url = repo_info.get("repo_url", "")
             description = repo_info.get("description", "")
             
-            # Create tweet content
-            tweet_parts = []
+            # === MAIN TWEET (without URL) ===
+            main_tweet_parts = []
             
             # Add repository name and author
             if author:
-                tweet_parts.append(f"🚀 {name} by @{author}" if author.startswith("@") else f"🚀 {name} by {author}")
+                # Clean up author name (remove @ if present since we're adding it)
+                clean_author = author.lstrip("@")
+                main_tweet_parts.append(f"🚀 {name} by {clean_author}")
             else:
-                tweet_parts.append(f"🚀 {name}")
+                main_tweet_parts.append(f"🚀 {name}")
             
-            # Add description if available (truncate if too long)
-            if description:
-                # Leave space for URL and hashtags (~50 chars)
-                max_desc_length = 200
-                if len(description) > max_desc_length:
-                    description = description[:max_desc_length-3] + "..."
-                tweet_parts.append(f"\n\n{description}")
+            # Always add description if available 
+            if description and description.strip():
+                # Clean up the description
+                clean_desc = description.strip()
+                
+                # Skip generic fallback descriptions
+                generic_descriptions = [
+                    f"Repository by {author}",
+                    "GitHub repository",
+                    f"Repository by {clean_author}" if author else None
+                ]
+                
+                if clean_desc not in [d for d in generic_descriptions if d]:
+                    # Calculate available space for description (no URL in main tweet)
+                    # Account for: name/author line + thread indicator + newlines + buffer
+                    base_length = len(main_tweet_parts[0]) + 10  # thread indicator ~5 + buffer ~5
+                    available_for_desc = 270 - base_length  # 270 to leave buffer
+                    
+                    if len(clean_desc) > available_for_desc:
+                        # Smart truncation - try to end at sentence or word boundary
+                        truncated = clean_desc[:available_for_desc-3]
+                        
+                        # Look for sentence ending
+                        last_period = truncated.rfind('. ')
+                        last_exclamation = truncated.rfind('! ')
+                        last_question = truncated.rfind('? ')
+                        
+                        best_ending = max(last_period, last_exclamation, last_question)
+                        
+                        if best_ending > available_for_desc * 0.7:  # If we found a good ending point
+                            clean_desc = truncated[:best_ending + 1]
+                        else:
+                            # Fall back to word boundary
+                            last_space = truncated.rfind(' ')
+                            if last_space > available_for_desc * 0.8:
+                                clean_desc = truncated[:last_space] + "..."
+                            else:
+                                clean_desc = truncated + "..."
+                    
+                    main_tweet_parts.append(f"\n\n{clean_desc}")
             
-            # Add hashtags
-            hashtags = ["#OpenSource", "#GitHub", "#Developer", "#Code"]
-            tweet_parts.append(f"\n\n{' '.join(hashtags)}")
+            # Add thread indicator (no hashtags)
+            main_tweet_parts.append(f"\n\n🧵")
             
-            # Add repository URL
-            tweet_parts.append(f"\n\n{repo_url}")
+            main_tweet = "".join(main_tweet_parts)
             
-            tweet_text = "".join(tweet_parts)
+            # === REPLY TWEET (with URL and additional info) ===
+            reply_tweet_parts = []
             
-            # Ensure tweet is under 280 characters
-            if len(tweet_text) > 280:
-                # Trim description to fit
-                available_chars = 280 - len(tweet_parts[0]) - len(tweet_parts[2]) - len(tweet_parts[3]) - 10  # 10 chars buffer
-                if len(description) > available_chars:
-                    trimmed_desc = description[:available_chars-3] + "..."
-                    tweet_parts[1] = f"\n\n{trimmed_desc}"
-                tweet_text = "".join(tweet_parts)
+            # Add the repository URL
+            if repo_url:
+                reply_tweet_parts.append(f"🔗 {repo_url}")
             
-            return tweet_text
+            # Add any additional context or call to action
+            reply_tweet_parts.append(f"\n\n⭐ Star it if you find it useful!")
+            
+            reply_tweet = "".join(reply_tweet_parts)
+            
+            # Final length checks
+            if len(main_tweet) > 280:
+                logger.warning(f"Main tweet too long ({len(main_tweet)} chars), trimming...")
+                # More aggressive trimming for main tweet
+                if len(main_tweet_parts) > 2 and description:
+                    # Reduce description length
+                    base_parts = [main_tweet_parts[0], main_tweet_parts[-1]]  # name, thread indicator
+                    base_length = len("".join(base_parts))
+                    
+                    remaining_for_desc = 270 - base_length
+                    if remaining_for_desc > 20:
+                        short_desc = description[:remaining_for_desc-6] + "..."
+                        main_tweet = main_tweet_parts[0] + f"\n\n{short_desc}" + main_tweet_parts[-1]
+                    else:
+                        # Skip description in main tweet
+                        main_tweet = "".join([main_tweet_parts[0], main_tweet_parts[-1]])
+            
+            if len(reply_tweet) > 280:
+                logger.warning(f"Reply tweet too long ({len(reply_tweet)} chars), trimming...")
+                # Simplify reply tweet
+                if repo_url:
+                    reply_tweet = f"🔗 {repo_url}"
+                else:
+                    reply_tweet = "⭐ Check it out!"
+            
+            logger.info(f"Generated thread - Main: {len(main_tweet)} chars, Reply: {len(reply_tweet)} chars")
+            
+            return {
+                "main_tweet": main_tweet,
+                "reply_tweet": reply_tweet
+            }
             
         except Exception as e:
-            logger.error(f"Error generating tweet for repository {repo_info.get('name', 'unknown')}: {str(e)}")
-            # Fallback to simple tweet
-            return f"🚀 Check out this repository: {repo_info.get('repo_url', '')} #OpenSource #GitHub"
+            logger.error(f"Error generating thread for repository {repo_info.get('name', 'unknown')}: {str(e)}")
+            # Fallback to simple thread (no hashtags)
+            name = repo_info.get("name", "Repository")
+            url = repo_info.get("repo_url", "")
+            return {
+                "main_tweet": f"🚀 {name}\n\n🧵",
+                "reply_tweet": f"🔗 {url}\n\n⭐ Star it if you find it useful!"
+            }
+    
+    def generate_repository_tweet(self, repo_info: Dict[str, Any]) -> str:
+        """Generate a single tweet text for a repository (backward compatibility)"""
+        thread = self.generate_repository_thread(repo_info)
+        # Combine main tweet and reply for single tweet format
+        main = thread["main_tweet"].replace("\n\n🧵", "")  # Remove thread indicator
+        reply = thread["reply_tweet"]
+        
+        combined = f"{main}\n\n{reply}"
+        
+        # If combined is too long, prioritize main content
+        if len(combined) > 280:
+            return main + f"\n\n{repo_info.get('repo_url', '')}"
+        
+        return combined
     
     def upload_media(self, media_path: str, alt_text: Optional[str] = None) -> Optional[str]:
         """Upload media to Twitter and return media ID"""
@@ -314,11 +398,150 @@ class TwitterService:
                 "tweet_url": None
             }
     
-    async def post_repository_tweet(self, repo_info: Dict[str, Any], include_media: bool = False) -> Dict[str, Any]:
-        """Generate and post a tweet for a repository with optional media"""
+    async def post_thread(self, main_tweet: str, reply_tweet: str, media_ids: Optional[List[str]] = None) -> Dict[str, Any]:
+        """Post a Twitter thread with main tweet and reply"""
+        if not self.is_configured():
+            return {
+                "success": False,
+                "error": "Twitter service is not configured",
+                "main_tweet_id": None,
+                "reply_tweet_id": None,
+                "thread_url": None
+            }
+        
         try:
-            # Generate tweet text
-            tweet_text = self.generate_repository_tweet(repo_info)
+            logger.info(f"Posting thread - Main: {main_tweet[:50]}... Reply: {reply_tweet[:50]}...")
+            if media_ids:
+                logger.info(f"Including {len(media_ids)} media attachments in main tweet")
+            
+            # Post the main tweet with optional media
+            if media_ids:
+                main_response = self.client.create_tweet(text=main_tweet, media_ids=media_ids)
+            else:
+                main_response = self.client.create_tweet(text=main_tweet)
+            
+            if not main_response.data:
+                logger.error("Main tweet creation failed - no response data")
+                return {
+                    "success": False,
+                    "error": "Main tweet creation failed - no response data",
+                    "main_tweet_id": None,
+                    "reply_tweet_id": None,
+                    "thread_url": None
+                }
+            
+            main_tweet_id = main_response.data["id"]
+            logger.info(f"Main tweet posted successfully: {main_tweet_id}")
+            
+            # Post the reply tweet
+            reply_response = self.client.create_tweet(
+                text=reply_tweet,
+                in_reply_to_tweet_id=main_tweet_id
+            )
+            
+            if reply_response.data:
+                reply_tweet_id = reply_response.data["id"]
+                thread_url = f"https://twitter.com/intent/tweet?tweet_id={main_tweet_id}"
+                
+                logger.info(f"Thread posted successfully - Main: {main_tweet_id}, Reply: {reply_tweet_id}")
+                
+                return {
+                    "success": True,
+                    "error": None,
+                    "main_tweet_id": main_tweet_id,
+                    "reply_tweet_id": reply_tweet_id,
+                    "thread_url": thread_url,
+                    "main_tweet_text": main_tweet,
+                    "reply_tweet_text": reply_tweet,
+                    "media_ids": media_ids
+                }
+            else:
+                logger.error("Reply tweet creation failed - no response data")
+                # Main tweet was posted successfully, but reply failed
+                return {
+                    "success": False,
+                    "error": "Reply tweet creation failed - main tweet posted successfully",
+                    "main_tweet_id": main_tweet_id,
+                    "reply_tweet_id": None,
+                    "thread_url": f"https://twitter.com/intent/tweet?tweet_id={main_tweet_id}",
+                    "partial_success": True
+                }
+                
+        except Exception as e:
+            error_msg = str(e)
+            logger.error(f"Failed to post thread: {error_msg}")
+            return {
+                "success": False,
+                "error": error_msg,
+                "main_tweet_id": None,
+                "reply_tweet_id": None,
+                "thread_url": None
+            }
+    
+    def validate_repository_description(self, repo_info: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate that repository has a meaningful description for Twitter posting"""
+        description = repo_info.get("description", "").strip()
+        repo_name = repo_info.get("name", "Unknown")
+        author = repo_info.get("author", "")
+        
+        # Check if description exists
+        if not description:
+            return {
+                "valid": False,
+                "error": f"Repository {repo_name} has no description available"
+            }
+        
+        # Check for generic/fallback descriptions that should be rejected
+        generic_descriptions = [
+            f"Repository by {author}",
+            "GitHub repository",
+            f"Repository by {author.lstrip('@')}" if author else None,
+        ]
+        
+        if description in [d for d in generic_descriptions if d]:
+            return {
+                "valid": False,
+                "error": f"Repository {repo_name} only has generic description: '{description}'. AI-generated short description required."
+            }
+        
+        # Check for minimum meaningful length
+        if len(description) < 10:
+            return {
+                "valid": False,
+                "error": f"Repository {repo_name} description too short: '{description}'. Minimum 10 characters required."
+            }
+        
+        return {
+            "valid": True,
+            "description": description
+        }
+
+    async def post_repository_tweet(self, repo_info: Dict[str, Any], include_media: bool = False) -> Dict[str, Any]:
+        """Generate and post a Twitter thread for a repository with optional media - REQUIRES meaningful description"""
+        try:
+            # VALIDATION: Ensure repository has meaningful description
+            validation = self.validate_repository_description(repo_info)
+            if not validation["valid"]:
+                error_msg = f"Cannot post tweet: {validation['error']}"
+                logger.error(error_msg)
+                return {
+                    "success": False,
+                    "error": error_msg,
+                    "tweet_id": None,
+                    "tweet_url": None,
+                    "repository_id": repo_info.get("id"),
+                    "repository_name": repo_info.get("name"),
+                    "repository_url": repo_info.get("repo_url"),
+                    "included_media": False,
+                    "validation_failed": True
+                }
+            
+            logger.info(f"✅ Repository {repo_info.get('name')} passed description validation")
+            
+            # Generate thread content (main tweet + reply with link)
+            thread_content = self.generate_repository_thread(repo_info)
+            main_tweet = thread_content["main_tweet"]
+            reply_tweet = thread_content["reply_tweet"]
             
             # Handle media if requested
             media_ids = None
@@ -340,22 +563,67 @@ class TwitterService:
                         
                 except Exception as media_error:
                     logger.error(f"Error processing media for repository {repo_info.get('name', 'unknown')}: {str(media_error)}")
-                    # Continue without media rather than failing the entire tweet
+                    # Continue without media rather than failing the entire thread
             
-            # Post tweet with or without media
-            result = await self.post_tweet(tweet_text, media_ids)
+            # Post thread with or without media
+            result = await self.post_thread(main_tweet, reply_tweet, media_ids)
             
-            # Add repository info to result
-            result["repository_id"] = repo_info.get("id")
-            result["repository_name"] = repo_info.get("name")
-            result["repository_url"] = repo_info.get("repo_url")
-            result["included_media"] = media_ids is not None
+            # Transform thread result to match expected single-tweet format for backward compatibility
+            if result["success"]:
+                # Use main tweet ID as primary tweet ID and thread URL
+                transformed_result = {
+                    "success": True,
+                    "error": None,
+                    "tweet_id": result["main_tweet_id"],
+                    "tweet_url": result["thread_url"],
+                    "main_tweet_id": result["main_tweet_id"],
+                    "reply_tweet_id": result["reply_tweet_id"],
+                    "repository_id": repo_info.get("id"),
+                    "repository_name": repo_info.get("name"),
+                    "repository_url": repo_info.get("repo_url"),
+                    "included_media": media_ids is not None,
+                    "validation_failed": False,
+                    "thread_posted": True,
+                    "main_tweet_text": main_tweet,
+                    "reply_tweet_text": reply_tweet
+                }
+            else:
+                # Handle partial success (main tweet posted but reply failed)
+                if result.get("partial_success"):
+                    transformed_result = {
+                        "success": True,  # Consider partial success as success
+                        "error": result["error"],
+                        "tweet_id": result["main_tweet_id"],
+                        "tweet_url": result["thread_url"],
+                        "main_tweet_id": result["main_tweet_id"],
+                        "reply_tweet_id": None,
+                        "repository_id": repo_info.get("id"),
+                        "repository_name": repo_info.get("name"),
+                        "repository_url": repo_info.get("repo_url"),
+                        "included_media": media_ids is not None,
+                        "validation_failed": False,
+                        "thread_posted": False,
+                        "partial_success": True
+                    }
+                else:
+                    transformed_result = {
+                        "success": False,
+                        "error": result["error"],
+                        "tweet_id": None,
+                        "tweet_url": None,
+                        "repository_id": repo_info.get("id"),
+                        "repository_name": repo_info.get("name"),
+                        "repository_url": repo_info.get("repo_url"),
+                        "included_media": False,
+                        "validation_failed": False,
+                        "thread_posted": False
+                    }
             
-            return result
+            return transformed_result
             
         except Exception as e:
             error_msg = str(e)
-            logger.error(f"Failed to post repository tweet for {repo_info.get('name', 'unknown')}: {error_msg}")
+            logger.error(f"Failed to post repository thread for {repo_info.get('name', 'unknown')}: {error_msg}")
             return {
                 "success": False,
                 "error": error_msg,
@@ -364,7 +632,9 @@ class TwitterService:
                 "repository_id": repo_info.get("id"),
                 "repository_name": repo_info.get("name"),
                 "repository_url": repo_info.get("repo_url"),
-                "included_media": False
+                "included_media": False,
+                "validation_failed": False,
+                "thread_posted": False
             }
     
     def get_rate_limit_status(self) -> Dict[str, Any]:

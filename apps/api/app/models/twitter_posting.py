@@ -86,12 +86,25 @@ class TwitterPostingResponse(BaseModel):
         from_attributes = True
 
 class TwitterPostingRequest(BaseModel):
-    """Request model for Twitter posting"""
+    """Request model for Twitter posting - Now posts as THREADS with repository links in second tweet"""
     job_name: Optional[str] = Field(None, description="Name for this Twitter posting job")
     max_repositories: int = Field(5, ge=1, le=50, description="Maximum number of repositories to post (1-50)")
     delay_between_posts: int = Field(30, ge=10, le=300, description="Delay in seconds between posts (10-300)")
-    include_analysis: bool = Field(False, description="Include repository analysis data in tweets")
-    include_media: bool = Field(False, description="Include README image as media attachment in tweets")
+    include_analysis: bool = Field(False, description="Include full repository analysis summary in tweets (fallback if no short description)")
+    include_media: bool = Field(False, description="Include README image as media attachment in main tweet of thread")
+    
+    model_config = {
+        "json_schema_extra": {
+            "description": "IMPORTANT: Twitter posting now creates THREADS instead of single tweets. Main tweet contains repository info and description, second tweet contains the repository link. REQUIRES repositories to have AI-generated short descriptions. Repositories without meaningful descriptions will be skipped and marked as failed.",
+            "example": {
+                "job_name": "quality-repos-threads-batch-1",
+                "max_repositories": 10,
+                "delay_between_posts": 60,
+                "include_analysis": False,
+                "include_media": True
+            }
+        }
+    }
     
 class TwitterPostingTaskResponse(BaseModel):
     """Response model for starting Twitter posting task"""

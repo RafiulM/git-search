@@ -1,12 +1,11 @@
 """
-Google Gemini AI Service for repository analysis and summarization
+OpenAI Service for repository analysis and content generation
 """
 
 import os
 import asyncio
 from typing import Dict, List, Optional, Any
-from google import genai
-from google.genai import types
+import openai
 import logging
 from dotenv import load_dotenv
 
@@ -22,26 +21,21 @@ except ImportError:
     db_service = None
 
 
-class GeminiAIService:
-    """Service for interacting with Google Gemini AI models"""
+class OpenAIService:
+    """Service for interacting with OpenAI models"""
 
     def __init__(self, api_key: Optional[str] = None):
-        """Initialize Gemini AI service"""
-        self.api_key = api_key or os.getenv("GOOGLE_AI_API_KEY")
+        """Initialize OpenAI service"""
+        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
         if not self.api_key:
-            raise ValueError("Google AI API key is required")
+            raise ValueError("OpenAI API key is required")
 
-        # Initialize the Gemini client
-        self.client = genai.Client(api_key=self.api_key)
+        # Initialize the OpenAI client
+        self.client = openai.AsyncOpenAI(api_key=self.api_key)
 
-        # Model names
-        self.chunk_model = "gemini-2.0-flash"
-        self.summary_model = "gemini-2.5-flash"
-
-        # Generation config for different use cases
-        self.chunk_config = types.GenerateContentConfig()
-        self.summary_config = types.GenerateContentConfig()
-        self.extraction_config = types.GenerateContentConfig()
+        # Model names - using latest available models
+        self.chunk_model = "gpt-4o"
+        self.summary_model = "gpt-4o"
 
     async def get_system_prompt(
         self, prompt_type: str, prompt_name: str = "default"
@@ -190,27 +184,28 @@ class GeminiAIService:
             )
 
             # Create the full prompt
-            full_prompt = f"""{system_prompt}
-
-You are analyzing chunk {chunk_index + 1} of {total_chunks} from a repository. 
+            user_prompt = f"""You are analyzing chunk {chunk_index + 1} of {total_chunks} from a repository. 
 The repository overview, statistics, and structure are provided for context.
 Focus on the key components, functionality, and structure in this specific chunk.
 Keep your summary comprehensive but concise, and relate it to the overall repository structure when relevant.
 
 {chunk_with_context}"""
 
-            # Generate summary using Gemini
-            response = await asyncio.to_thread(
-                self.client.models.generate_content,
+            # Generate summary using OpenAI
+            response = await self.client.chat.completions.create(
                 model=self.chunk_model,
-                contents=full_prompt,
-                config=self.chunk_config,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                temperature=0.3,
+                max_tokens=4000,
             )
 
             return {
                 "chunk_index": chunk_index + 1,
                 "total_chunks": total_chunks,
-                "summary": response.text,
+                "summary": response.choices[0].message.content,
                 "character_count": len(chunk),
                 "success": True,
                 "error": None,
@@ -287,11 +282,11 @@ REPOSITORY STRUCTURE:
 ---
 """
 
-            # Split text into chunks
-            chunks = self.chunk_text(full_text, 1200000)  # 1.2M chars per chunk
+            # Split text into chunks (smaller for OpenAI due to token limits)
+            chunks = self.chunk_text(full_text, 800000)  # 800K chars per chunk
             logger.info(f"Processing {len(chunks)} chunks of repository data")
 
-            # Process chunks in parallel
+            # Process chunks in parallel (but with rate limiting)
             chunk_tasks = [
                 self.generate_chunk_summary(
                     chunk, index, len(chunks), repository_context, system_prompt
@@ -371,7 +366,7 @@ Individual Chunk Summaries:
 {combined_summaries}"""
 
             # Limit prompt size if too large
-            max_summary_length = 1600000
+            max_summary_length = 100000  # More conservative for OpenAI
             if len(final_summary_prompt) > max_summary_length:
                 logger.warning(
                     f"Final summary prompt too long ({len(final_summary_prompt):,} chars), "
@@ -380,16 +375,19 @@ Individual Chunk Summaries:
                 final_summary_prompt = final_summary_prompt[:max_summary_length]
 
             # Generate final summary
-            final_response = await asyncio.to_thread(
-                self.client.models.generate_content,
+            final_response = await self.client.chat.completions.create(
                 model=self.summary_model,
-                contents=f"{system_prompt}\n\n{final_summary_prompt}",
-                config=self.summary_config,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": final_summary_prompt},
+                ],
+                temperature=0.3,
+                max_tokens=8000,
             )
 
             return {
                 "success": True,
-                "summary": final_response.text,
+                "summary": final_response.choices[0].message.content,
                 "chunks_processed": len(chunks),
                 "successful_chunks": len(successful_chunks),
                 "failed_chunks": len(failed_chunks),
@@ -423,7 +421,7 @@ Individual Chunk Summaries:
         max_length: int = 150,
     ) -> Dict[str, Any]:
         """
-        Generate a short description from a repository summary using gemini-2.5-pro
+        Generate a short description from a repository summary
 
         Args:
             summary: The full repository summary to condense
@@ -478,24 +476,31 @@ URL: {repo_url}
 
 Focus on creating a description that represents what "{repo_name}" does in a compelling way."""
 
-            # Generate short description using gemini-2.5-pro
-            response = await asyncio.to_thread(
-                self.client.models.generate_content,
-                model="gemini-2.5-pro",
-                contents=system_prompt + "\n\n" + user_content,
-                config=self.summary_config,
+            # Generate short description using OpenAI
+            response = await self.client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_content},
+                ],
+                temperature=0.3,
+                max_tokens=100,
             )
 
-            if not response or not response.text:
+            if (
+                not response
+                or not response.choices
+                or not response.choices[0].message.content
+            ):
                 return {
                     "success": False,
-                    "error": "No response from Gemini API",
+                    "error": "No response from OpenAI API",
                     "short_description": None,
                     "length": 0,
-                    "model_used": "gemini-2.5-pro",
+                    "model_used": "gpt-4o",
                 }
 
-            short_description = response.text.strip()
+            short_description = response.choices[0].message.content.strip()
 
             # Remove quotes if they wrap the entire description
             if (
@@ -521,7 +526,7 @@ Focus on creating a description that represents what "{repo_name}" does in a com
                 "short_description": short_description,
                 "length": len(short_description),
                 "original_summary_length": len(summary),
-                "model_used": "gemini-2.5-pro",
+                "model_used": "gpt-4o",
                 "max_length": max_length,
             }
 
@@ -532,19 +537,18 @@ Focus on creating a description that represents what "{repo_name}" does in a com
                 "error": str(e),
                 "short_description": None,
                 "length": 0,
-                "model_used": "gemini-2.5-pro",
+                "model_used": "gpt-4o",
             }
 
     async def extract_repositories_from_content(
         self, content: str, website_url: str
     ) -> Dict[str, Any]:
         """
-        Extract repository information from website content using structured output
+        Extract repository information from website content
 
         Args:
             content: Scraped website content (markdown format)
             website_url: Original website URL for context
-            schema_class: Pydantic schema class for structured output
 
         Returns:
             Dictionary containing extracted repositories and metadata
@@ -555,42 +559,66 @@ Focus on creating a description that represents what "{repo_name}" does in a com
             )
 
             # Create the extraction prompt
-            extraction_prompt = f"""You are an expert at extracting repository information from website content. 
+            system_prompt = """You are an expert at extracting repository information from website content. 
 Your task is to analyze the provided website content and extract ALL Git repository URLs along with any available metadata.
 
 IMPORTANT INSTRUCTIONS:
 1. Look for ANY Git repository URLs (GitHub, GitLab, Bitbucket, etc.)
 2. Extract as much metadata as possible for each repository (name, author, description)
 3. Only include VALID repository URLs that point to actual code repositories
-4. If no repositories are found, return an empty list
+4. If no repositories are found, return an empty JSON array
 5. Provide a confidence score between 0.0 and 1.0 for each repository
 
-SOURCE WEBSITE: {website_url}
+Return your response as a JSON array of objects with this structure:
+[
+  {
+    "name": "repository-name",
+    "author": "author-name",
+    "url": "https://github.com/author/repo",
+    "description": "Brief description if available",
+    "confidence": 0.95
+  }
+]"""
+
+            user_prompt = f"""SOURCE WEBSITE: {website_url}
 
 WEBSITE CONTENT TO ANALYZE:
-{content[:100000]}{"... [content truncated]" if len(content) > 100000 else ""}"""
+{content[:50000]}{"... [content truncated]" if len(content) > 50000 else ""}"""
 
-            # Import the ExtractedRepoInfo model for structured output
-            from app.models.simple_scraping import ExtractedRepoInfo
-
-            # Generate structured output using Gemini with Pydantic model
-            response = await asyncio.to_thread(
-                self.client.models.generate_content,
-                model="gemini-2.0-flash",
-                contents=extraction_prompt,
-                config={
-                    "response_mime_type": "application/json",
-                    "response_schema": list[ExtractedRepoInfo],
-                },
+            # Generate extraction using OpenAI
+            response = await self.client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                temperature=0.1,
+                max_tokens=4000,
             )
 
-            # Access the parsed response directly
-            if not response.parsed:
-                raise Exception("No response parsed from Gemini")
+            # Parse the JSON response
+            import json
 
-            extracted_data = response.parsed
-            if not isinstance(extracted_data, list):
-                raise Exception("Response is not a list")
+            try:
+                messange_content = response.choices[0].message.content
+                if not messange_content:
+                    return {
+                        "success": False,
+                        "extracted_data": None,
+                        "content_length": len(content),
+                        "website_url": website_url,
+                        "model_used": "gpt-4o",
+                        "error": "No response from OpenAI API",
+                    }
+
+                extracted_data = json.loads(messange_content)
+                if not isinstance(extracted_data, list):
+                    extracted_data = []
+            except json.JSONDecodeError:
+                logger.warning(
+                    f"Failed to parse JSON response from OpenAI: {response.choices[0].message.content}"
+                )
+                extracted_data = []
 
             logger.info(f"Successfully extracted repository data from {website_url}")
 
@@ -599,7 +627,7 @@ WEBSITE CONTENT TO ANALYZE:
                 "extracted_data": extracted_data,
                 "content_length": len(content),
                 "website_url": website_url,
-                "model_used": "gemini-2.0-flash",
+                "model_used": "gpt-4o",
                 "error": None,
             }
 
@@ -610,10 +638,10 @@ WEBSITE CONTENT TO ANALYZE:
                 "extracted_data": None,
                 "content_length": len(content) if content else 0,
                 "website_url": website_url,
-                "model_used": "gemini-2.0-flash",
+                "model_used": "gpt-4o",
                 "error": str(e),
             }
 
 
 # Create a singleton instance
-gemini_service = GeminiAIService()
+openai_service = OpenAIService()

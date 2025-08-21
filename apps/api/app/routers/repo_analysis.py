@@ -582,7 +582,9 @@ async def start_batch_processing(
             # Start appropriate background task based on process type
             if request.process_type == "analysis_only":
                 # Pure repository analysis only
-                background_tasks.add_task(analyze_repository_task, task_id, repo.repo_url)
+                background_tasks.add_task(
+                    analyze_repository_task, task_id, repo.repo_url
+                )
             elif request.process_type == "ai_summary_and_description":
                 background_tasks.add_task(
                     generate_ai_summary_and_description_task, task_id, repo.repo_url
@@ -598,7 +600,9 @@ async def start_batch_processing(
                 )
             elif request.process_type == "orphaned_documents":
                 # Regenerate analysis for repositories with orphaned/incomplete documents
-                background_tasks.add_task(analyze_repository_task, task_id, repo.repo_url)
+                background_tasks.add_task(
+                    analyze_repository_task, task_id, repo.repo_url
+                )
             else:
                 # Default "analysis_and_docs": comprehensive processing that determines what's needed
                 background_tasks.add_task(
@@ -891,17 +895,25 @@ async def post_repository_tweets(
                     f"📝 [{i+1}/{len(repositories)}] Processing repository: {repository.name}"
                 )
 
+                # Get latest repository analysis
+                analysis = await db.get_latest_repository_analysis(repository.id)
+
+                if not analysis:
+                    logger.warning(
+                        f"⚠️ Repository {repository.name} has no analysis, skipping"
+                    )
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Repository {repository.name} has no analysis",
+                    )
+
                 # Prepare repository info for tweet
                 repo_info = {
                     "id": str(repository.id),
                     "name": repository.name,
                     "author": repository.author,
                     "repo_url": repository.repo_url,
-                    "description": (
-                        f"Repository by {repository.author}"
-                        if repository.author
-                        else "GitHub repository"
-                    ),
+                    "description": analysis.description,
                 }
 
                 # If include_analysis is True, try to get repository analysis
@@ -972,28 +984,18 @@ async def post_repository_tweets(
                                         logger.warning(
                                             f"   ⚠️ Failed to generate short description: {short_desc_result.get('error')}"
                                         )
-                                        # Fallback to truncated summary
-                                        if (
-                                            hasattr(analysis, "summary")
-                                            and analysis.summary
-                                        ):
-                                            repo_info["description"] = (
-                                                analysis.summary[:150] + "..."
-                                                if len(analysis.summary) > 150
-                                                else analysis.summary
-                                            )
+                                        raise HTTPException(
+                                            status_code=500,
+                                            detail=f"Failed to generate short description: {short_desc_result.get('error')}",
+                                        )
                                 except Exception as gen_error:
                                     logger.warning(
                                         f"   ⚠️ Error generating short description: {str(gen_error)}"
                                     )
-                            # Fallback to regular summary if available
-                            elif hasattr(analysis, "summary") and analysis.summary:
-                                repo_info["description"] = (
-                                    analysis.summary[:150] + "..."
-                                    if len(analysis.summary) > 150
-                                    else analysis.summary
-                                )
-                                logger.info(f"   ✅ Using truncated summary")
+                                    raise HTTPException(
+                                        status_code=500,
+                                        detail=f"Failed to generate short description: {str(gen_error)}",
+                                    )
                             else:
                                 logger.info("   ℹ️ No summary or AI summary available")
                         else:
