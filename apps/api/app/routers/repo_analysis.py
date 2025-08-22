@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Body
 from typing import Optional, List
 from uuid import UUID, uuid4
 from datetime import datetime
@@ -47,8 +47,11 @@ from app.models import (
     SimpleScrapeStatus,
     RepositoryProcessingStatus,
 )
+from app.models.github_config import ForkAndModifyRequest
+from app.services.github_service import github_service
 from app.services.database import get_database_service, DatabaseService
 from app.services.document_generation import DocumentGenerationService
+from app.services.fork_management_service import get_fork_management_service
 from app.services.auth import require_api_key
 import tempfile
 import os
@@ -1675,4 +1678,130 @@ async def convert_readme_to_image(github_url: str, dark_mode: bool = False):
         logger.error(f"Failed to convert README to image for {github_url}: {error_msg}")
         raise HTTPException(
             status_code=500, detail=f"Failed to convert README to image: {error_msg}"
+        )
+
+
+@router.post("/fork-and-modify")
+async def fork_and_modify(
+    request: ForkAndModifyRequest = Body(...),
+    db: DatabaseService = Depends(get_database_service),
+):
+    """Fork a repository and modify it with specified changes"""
+    try:
+        # Validate that GitHub service is available
+        if not github_service:
+            raise HTTPException(
+                status_code=503,
+                detail="GitHub service is not available. Please check GitHub token configuration.",
+            )
+
+        logger.info(
+            f"Starting fork-and-modify operation for repository: {request.source_repo.full_name}"
+        )
+
+        # Validate request
+        if not request.source_repo or not request.source_repo.full_name:
+            raise HTTPException(
+                status_code=400, detail="Source repository information is required"
+            )
+
+        if not request.commit_info or not request.commit_info.message:
+            raise HTTPException(
+                status_code=400, detail="Commit information with message is required"
+            )
+
+        if not request.commit_info.files or len(request.commit_info.files) == 0:
+            raise HTTPException(
+                status_code=400, detail="At least one file operation is required"
+            )
+
+        # Execute the fork-and-modify operation
+        result = await github_service.fork_and_modify(request)
+
+        if result.success:
+            logger.info(
+                f"Fork-and-modify operation completed successfully for {request.source_repo.full_name}"
+            )
+
+            # Prepare response
+            response_data = {
+                "success": True,
+                "message": "Repository forked and modified successfully",
+                "source_repo": request.source_repo.full_name,
+                "fork_url": result.fork_url,
+                "commit_sha": result.commit_sha,
+                "files_modified": result.files_modified,
+                "processing_time": result.processing_time,
+                "workflow_steps": (
+                    result.metadata.get("workflow_steps", []) if result.metadata else []
+                ),
+                "total_files_modified": (
+                    result.metadata.get("total_files_modified", 0)
+                    if result.metadata
+                    else 0
+                ),
+            }
+
+            # Add target repo info if available
+            if result.target_repo:
+                response_data["target_repo"] = result.target_repo.full_name
+
+            # Add temp directory info if cleanup was not performed
+            if result.temp_directory:
+                response_data["temp_directory"] = result.temp_directory
+                response_data["note"] = (
+                    "Temporary directory was not cleaned up. Manual cleanup may be required."
+                )
+
+            return response_data
+        else:
+            logger.error(
+                f"Fork-and-modify operation failed for {request.source_repo.full_name}: {result.error}"
+            )
+            raise HTTPException(
+                status_code=500,
+                detail=f"Fork-and-modify operation failed: {result.error}",
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"Unexpected error in fork-and-modify operation: {error_msg}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Unexpected error during fork-and-modify operation: {error_msg}",
+        )
+
+
+@router.post("/auto-fork-repository")
+async def auto_fork_repository(
+    db: DatabaseService = Depends(get_database_service),
+):
+    """Automatically find a repository analysis without forked_repo_url and create a knowledge base"""
+    try:
+        # Get fork management service
+        fork_service = get_fork_management_service(db)
+        
+        # Execute auto fork operation
+        result, error = await fork_service.auto_fork_repository()
+        
+        if error:
+            if "not available" in error:
+                raise HTTPException(status_code=503, detail=error)
+            elif "No repository analysis found" in error:
+                raise HTTPException(status_code=404, detail=error)
+            else:
+                raise HTTPException(status_code=500, detail=error)
+        
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"Unexpected error in auto fork repository: {error_msg}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Unexpected error during auto fork repository: {error_msg}",
         )

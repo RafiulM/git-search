@@ -21,9 +21,6 @@ logger = logging.getLogger(__name__)
 # Import for Supabase
 from supabase import create_client, Client
 
-# Import for Playwright
-from playwright.async_api import async_playwright
-
 from repo2text.core import RepoAnalyzer
 
 from app.services.database import db_service
@@ -32,6 +29,8 @@ from app.services.firecrawl_service import firecrawl_service
 from app.services.twitter_service import twitter_service
 from app.services.document_generation import document_generation_service
 from app.services.github_service import github_service
+from app.services.fork_management_service import get_fork_management_service
+from app.utils.repo_utils import extract_repo_info
 from app.services.simple_markdown_to_image import (
     simple_markdown_to_image_sync,
     get_default_branch,
@@ -64,33 +63,6 @@ class TaskStatus:
 # Simple in-memory task storage
 # In production, you might want to use Redis or database for persistence
 task_storage: Dict[str, Dict[str, Any]] = {}
-
-
-def extract_repo_info(github_url: str) -> Dict[str, str]:
-    """Extract repository information from GitHub URL"""
-    try:
-        # Handle different GitHub URL formats
-        if github_url.endswith(".git"):
-            github_url = github_url[:-4]
-
-        # Parse URL
-        parsed = urlparse(github_url)
-        path_parts = parsed.path.strip("/").split("/")
-
-        if len(path_parts) < 2:
-            raise ValueError("Invalid GitHub URL format")
-
-        owner = path_parts[0]
-        repo_name = path_parts[1]
-
-        return {
-            "owner": owner,
-            "repo_name": repo_name,
-            "full_name": f"{owner}/{repo_name}",
-            "clone_url": f"https://github.com/{owner}/{repo_name}.git",
-        }
-    except Exception as e:
-        raise ValueError(f"Invalid GitHub URL: {str(e)}")
 
 
 def get_github_readme(owner: str, repo: str) -> Optional[str]:
@@ -317,22 +289,6 @@ async def analyze_repository_task(task_id: str, github_url: str):
             repo_id=str(repo_id),
         )
 
-        # Fork the repository before analysis
-        forked_repo_url = None
-        try:
-            logger.info(f"Attempting to fork repository: {github_url}")
-            fork_result = await github_service.fork_repository(github_url)
-            if fork_result["success"]:
-                forked_repo_url = fork_result["forked_url"]
-                logger.info(f"Successfully forked repository to: {forked_repo_url}")
-            else:
-                logger.warning(
-                    f"Failed to fork repository: {fork_result.get('error', 'Unknown error')}"
-                )
-        except Exception as fork_error:
-            logger.error(f"Error during repository forking: {str(fork_error)}")
-            # Continue with analysis even if forking fails
-
         # Update task state
         update_task_status(
             task_id,
@@ -358,7 +314,6 @@ async def analyze_repository_task(task_id: str, github_url: str):
             large_files_skipped=stats["large_files_skipped"],
             binary_files_skipped=stats["binary_files_skipped"],
             encoding_errors=stats["encoding_errors"],
-            forked_repo_url=forked_repo_url,
         )
 
         analysis = await db_service.create_repository_analysis(analysis_data)
@@ -674,6 +629,96 @@ async def analyze_repository_task(task_id: str, github_url: str):
             )
             # Continue without failing the entire task
 
+        # Create knowledge base fork if analysis is complete and has required data
+        # Update task state
+        update_task_status(
+            task_id,
+            TaskStatus.STARTED,
+            "Creating knowledge base fork",
+            95,
+            repo_id=str(repo_id),
+        )
+
+        logger.info(f"Attempting to create knowledge base for repo {repo_id}")
+
+        # Get fork management service
+        fork_service = get_fork_management_service(db_service)
+
+        # Get the current repository and analysis
+        repository = await db_service.get_repository(repo_id)
+        current_analysis = await db_service.get_repository_analysis(analysis.id)
+
+        if not current_analysis:
+            logger.error(
+                f"Repository {repo_id} has no analysis, skipping knowledge base creation"
+            )
+            raise Exception(
+                f"Repository {repo_id} has no analysis, skipping knowledge base creation"
+            )
+
+        # Check if we have the required data for knowledge base creation
+        has_ai_summary = (
+            current_analysis.ai_summary and current_analysis.ai_summary.strip()
+        )
+        has_description = (
+            current_analysis.description and current_analysis.description.strip()
+        )
+
+        # Get documents for this analysis (we might have just created them)
+        knowledge_documents = await db_service.get_documents_by_repository_analysis(
+            analysis.id
+        )
+
+        if has_ai_summary and has_description and knowledge_documents:
+            logger.info(
+                f"Repository {repo_id} has all required data for knowledge base creation: "
+                f"AI summary, description, and {len(knowledge_documents)} documents"
+            )
+
+            # Create knowledge base
+            fork_result, fork_error = (
+                await fork_service.create_knowledge_base_for_analysis(
+                    current_analysis, repository, knowledge_documents
+                )
+            )
+
+            if fork_error:
+                if "already has a forked repo URL" in fork_error:
+                    logger.info(
+                        f"Repository {repo_id} already has a fork, skipping knowledge base creation"
+                    )
+                    generated_documents["knowledge_base_fork"] = "already_exists"
+                else:
+                    logger.error(
+                        f"Failed to create knowledge base for repo {repo_id}: {fork_error}"
+                    )
+                    raise Exception(
+                        f"Knowledge base fork creation failed: {fork_error}"
+                    )
+
+            if not fork_result:
+                logger.error(
+                    f"Failed to create knowledge base for repo {repo_id}: {fork_error}"
+                )
+                raise Exception(f"Knowledge base fork creation failed: {fork_error}")
+
+            logger.info(
+                f"Successfully created knowledge base fork for repo {repo_id}: {fork_result['fork_url']}"
+            )
+            generated_documents["knowledge_base_fork"] = fork_result["fork_url"]
+
+            # Update repository analysis with forked repo URL
+            await db_service.update_repository_analysis(
+                analysis.id, {"forked_repo_url": fork_result["fork_url"]}
+            )
+        else:
+            logger.info(
+                f"Repository {repo_id} is not ready for knowledge base creation - "
+                f"has_ai_summary: {has_ai_summary}, has_description: {has_description}, "
+                f"documents: {len(knowledge_documents) if knowledge_documents else 0}"
+            )
+            generated_documents["knowledge_base_fork"] = "not_ready"
+
         # Update repository with content info
         content_preview = (
             repo_content[:1000] + "..." if len(repo_content) > 1000 else repo_content
@@ -836,14 +881,6 @@ async def batch_process_repositories_task(
     )
 
     try:
-        # Update batch status to processing
-        await db_service.update_batch_processing(
-            batch_id,
-            BatchProcessingUpdate(
-                status=BatchStatus.PROCESSING, started_at=datetime.utcnow()
-            ),
-        )
-
         # Process repositories in batches of max_concurrent
         processed_count = 0
         successful_count = 0
@@ -863,7 +900,7 @@ async def batch_process_repositories_task(
             for repo_id in batch_repos:
                 try:
                     # Get repository details
-                    repository = await db_service.get_repository(repo_id)
+                    repository = await db_service.get_repository(UUID(repo_id))
                     if not repository:
                         logger.warning(f"Repository {repo_id} not found, skipping")
                         failed_count += 1
@@ -910,34 +947,12 @@ async def batch_process_repositories_task(
 
                     processed_count += 1
 
-                    # Update batch progress
-                    await db_service.update_batch_processing(
-                        batch_id,
-                        BatchProcessingUpdate(
-                            processed_repositories=processed_count,
-                            successful_repositories=successful_count,
-                            failed_repositories=failed_count,
-                            task_ids=task_ids,
-                        ),
-                    )
-
                 except Exception as e:
                     logger.error(
                         f"Task {task_id} for repository {repo_id} failed: {str(e)}"
                     )
                     failed_count += 1
                     processed_count += 1
-
-                    # Update batch progress
-                    await db_service.update_batch_processing(
-                        batch_id,
-                        BatchProcessingUpdate(
-                            processed_repositories=processed_count,
-                            successful_repositories=successful_count,
-                            failed_repositories=failed_count,
-                            task_ids=task_ids,
-                        ),
-                    )
 
             logger.info(
                 f"Completed batch {i//max_concurrent + 1}. Progress: {processed_count}/{len(repository_ids)}"
@@ -948,18 +963,6 @@ async def batch_process_repositories_task(
             BatchStatus.COMPLETED if failed_count == 0 else BatchStatus.COMPLETED
         )
 
-        await db_service.update_batch_processing(
-            batch_id,
-            BatchProcessingUpdate(
-                status=final_status,
-                processed_repositories=processed_count,
-                successful_repositories=successful_count,
-                failed_repositories=failed_count,
-                task_ids=task_ids,
-                completed_at=datetime.utcnow(),
-            ),
-        )
-
         logger.info(
             f"Batch processing {batch_id} completed. Success: {successful_count}, Failed: {failed_count}"
         )
@@ -967,16 +970,6 @@ async def batch_process_repositories_task(
     except Exception as e:
         error_msg = str(e)
         logger.error(f"Batch processing {batch_id} failed: {error_msg}")
-
-        # Mark batch as failed
-        await db_service.update_batch_processing(
-            batch_id,
-            BatchProcessingUpdate(
-                status=BatchStatus.FAILED,
-                error_message=error_msg,
-                completed_at=datetime.utcnow(),
-            ),
-        )
 
 
 async def scrape_website_and_extract_repositories_task(
@@ -1327,33 +1320,11 @@ async def post_repository_tweets_task(
                         logger.info(
                             f"   ✅ Using AI-generated short description (was: '{original_desc}', now: '{repo_info['description'][:50]}...')"
                         )
-                    # Second priority: If include_analysis is True, use summary as fallback
-                    elif include_analysis and analysis and analysis.summary:
-                        original_desc = repo_info["description"]
-                        repo_info["description"] = (
-                            analysis.summary[:150] + "..."
-                            if len(analysis.summary) > 150
-                            else analysis.summary
-                        )
-                        description_found = True
-                        logger.info(
-                            f"   ✅ Using analysis summary as description (was: '{original_desc}', now: '{repo_info['description'][:50]}...')"
-                        )
 
                     # ERROR: No meaningful description available
                     if not description_found:
                         error_msg = f"Repository {repository.name} (ID: {repository.id}) has no AI-generated short description or analysis summary available. Cannot post to Twitter without meaningful description."
                         logger.error(f"   ❌ {error_msg}")
-
-                        # Update posting record with failure
-                        await db_service.update_twitter_posting(
-                            posting_id,
-                            {
-                                "processed_repositories": processed_repositories + 1,
-                                "failed_posts": failed_posts + 1,
-                                "error_message": error_msg,
-                            },
-                        )
 
                         failed_posts += 1
                         processed_repositories += 1
@@ -1362,16 +1333,6 @@ async def post_repository_tweets_task(
                 except Exception as e:
                     error_msg = f"Could not get analysis for repository {repository.name}: {str(e)}"
                     logger.error(f"   ❌ {error_msg}")
-
-                    # Update posting record with failure
-                    await db_service.update_twitter_posting(
-                        posting_id,
-                        {
-                            "processed_repositories": processed_repositories + 1,
-                            "failed_posts": failed_posts + 1,
-                            "error_message": error_msg,
-                        },
-                    )
 
                     failed_posts += 1
                     processed_repositories += 1
@@ -1670,7 +1631,7 @@ async def generate_ai_summary_and_description_task(task_id: str, github_url: str
                 )
 
                 # Generate AI summary using Gemini
-                summary_result = await gemini_service.generate_summary_from_text(
+                summary_result = await gemini_service.generate_repository_summary(
                     full_text=repo_content,
                     repository_info=repository_info,
                     system_prompt=system_prompt,
@@ -1704,6 +1665,9 @@ async def generate_ai_summary_and_description_task(task_id: str, github_url: str
                 70,
                 repo_id=str(repo_id),
             )
+
+            if not generated_data["ai_summary"]:
+                raise Exception(f"No AI summary found for {repo_info['full_name']}")
 
             try:
                 short_desc_result = await gemini_service.generate_short_description(
@@ -1921,6 +1885,9 @@ async def generate_documents_with_ai_ready_task(task_id: str, github_url: str):
 
         # Generate documents using the document generation service
         try:
+            if not analysis.ai_summary:
+                raise Exception(f"No AI summary found for {repo_info['full_name']}")
+
             document_results = await document_generation_service.generate_multiple_documents_from_summary(
                 repository_analysis_id=analysis.id,
                 document_types=document_generation_service.DEFAULT_DOCUMENT_TYPES,

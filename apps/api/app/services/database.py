@@ -528,6 +528,38 @@ class DatabaseService:
         except Exception as e:
             raise Exception(f"Database error getting repository analysis: {str(e)}")
 
+    async def get_repository_analysis_without_fork_url(
+        self,
+    ) -> Optional[RepositoryAnalysis]:
+        """Get a repository analysis that doesn't have a forked_repo_url"""
+        try:
+            result = (
+                self.client.table("repository_analysis")
+                .select("*")
+                .is_("forked_repo_url", "null")
+                .limit(1)
+                .execute()
+            )
+
+            if result.data:
+                # Parse JSON string back to dict for Pydantic model
+                row_data = result.data[0]
+                if isinstance(row_data.get("analysis_data"), str):
+                    try:
+                        row_data["analysis_data"] = json.loads(
+                            row_data["analysis_data"]
+                        )
+                    except json.JSONDecodeError:
+                        pass
+
+                return RepositoryAnalysis(**row_data)
+            return None
+
+        except Exception as e:
+            raise Exception(
+                f"Database error getting repository analysis without fork URL: {str(e)}"
+            )
+
     async def update_repository_analysis(
         self,
         analysis_id: UUID,
@@ -597,6 +629,9 @@ class DatabaseService:
 
             if get_value("description") is not None:
                 data["description"] = get_value("description")
+
+            if get_value("forked_repo_url") is not None:
+                data["forked_repo_url"] = get_value("forked_repo_url")
 
             if not data:
                 return await self.get_repository_analysis(analysis_id)
