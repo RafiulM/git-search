@@ -2,11 +2,14 @@ version: '3.8'
 
 services:
   api:
-    build: .
+    build: 
+      context: .
+      dockerfile: Dockerfile
     ports:
       - "8009:8009"
-    volumes:
-      - .:/app
+    # Remove volume mount for production to use code baked into image
+    # volumes:
+    #   - .:/app
     environment:
       - SUPABASE_URL=${SUPABASE_URL:-https://your-supabase-url.supabase.co}
       - SUPABASE_KEY=${SUPABASE_KEY:-your-supabase-key}

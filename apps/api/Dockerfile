@@ -37,7 +37,7 @@ RUN apt-get update && apt-get install -y \
     fonts-noto-core \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements file
+# Copy requirements file first for better caching
 COPY requirements.txt .
 
 # Install Python dependencies
@@ -46,7 +46,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Install Playwright browsers
 RUN playwright install chromium
 
-# Copy application code
+# Copy application code last to invalidate cache on code changes
 COPY . .
 
 # Set environment variables for emoji support

@@ -7,7 +7,7 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instanciate createClient with right options
+  // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "12.2.12 (cd3cf9e)"
@@ -27,7 +27,8 @@ export type Database = {
           metadata: Json | null
           model_used: string | null
           parent_document_id: string | null
-          repository_id: string
+          repository_analysis_id: string | null
+          repository_id: string | null
           title: string
           updated_at: string
           version: number
@@ -44,7 +45,8 @@ export type Database = {
           metadata?: Json | null
           model_used?: string | null
           parent_document_id?: string | null
-          repository_id: string
+          repository_analysis_id?: string | null
+          repository_id?: string | null
           title: string
           updated_at?: string
           version?: number
@@ -61,7 +63,8 @@ export type Database = {
           metadata?: Json | null
           model_used?: string | null
           parent_document_id?: string | null
-          repository_id?: string
+          repository_analysis_id?: string | null
+          repository_id?: string | null
           title?: string
           updated_at?: string
           version?: number
@@ -72,6 +75,13 @@ export type Database = {
             columns: ["parent_document_id"]
             isOneToOne: false
             referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documents_repository_analysis_id_fkey"
+            columns: ["repository_analysis_id"]
+            isOneToOne: false
+            referencedRelation: "repository_analysis"
             referencedColumns: ["id"]
           },
           {
@@ -90,6 +100,45 @@ export type Database = {
           },
         ]
       }
+      prompts: {
+        Row: {
+          content: string
+          created_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          metadata: Json | null
+          name: string
+          type: string
+          updated_at: string | null
+          version: number | null
+        }
+        Insert: {
+          content: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          metadata?: Json | null
+          name: string
+          type: string
+          updated_at?: string | null
+          version?: number | null
+        }
+        Update: {
+          content?: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          metadata?: Json | null
+          name?: string
+          type?: string
+          updated_at?: string | null
+          version?: number | null
+        }
+        Relationships: []
+      }
       repositories: {
         Row: {
           author: string | null
@@ -101,7 +150,11 @@ export type Database = {
           full_text_path: string | null
           id: string
           name: string
+          processing_status:
+            | Database["public"]["Enums"]["repositories_processing_status_enum"]
+            | null
           repo_url: string
+          twitter_link: string | null
           updated_at: string
         }
         Insert: {
@@ -114,7 +167,11 @@ export type Database = {
           full_text_path?: string | null
           id?: string
           name: string
+          processing_status?:
+            | Database["public"]["Enums"]["repositories_processing_status_enum"]
+            | null
           repo_url: string
+          twitter_link?: string | null
           updated_at?: string
         }
         Update: {
@@ -127,67 +184,86 @@ export type Database = {
           full_text_path?: string | null
           id?: string
           name?: string
+          processing_status?:
+            | Database["public"]["Enums"]["repositories_processing_status_enum"]
+            | null
           repo_url?: string
+          twitter_link?: string | null
           updated_at?: string
         }
         Relationships: []
       }
       repository_analysis: {
         Row: {
+          ai_summary: string | null
           analysis_data: Json | null
           analysis_version: number
           binary_files_skipped: number | null
           created_at: string
+          description: string | null
           encoding_errors: number | null
           estimated_size_bytes: number | null
           estimated_tokens: number | null
           files_processed: number | null
+          forked_repo_url: string | null
           id: string
           large_files_skipped: number | null
+          readme_image_src: string | null
           repository_id: string
           total_characters: number | null
           total_directories: number | null
           total_files_found: number | null
           total_lines: number | null
           tree_structure: string | null
+          twitter_link: string | null
           updated_at: string
         }
         Insert: {
+          ai_summary?: string | null
           analysis_data?: Json | null
           analysis_version?: number
           binary_files_skipped?: number | null
           created_at?: string
+          description?: string | null
           encoding_errors?: number | null
           estimated_size_bytes?: number | null
           estimated_tokens?: number | null
           files_processed?: number | null
+          forked_repo_url?: string | null
           id?: string
           large_files_skipped?: number | null
+          readme_image_src?: string | null
           repository_id: string
           total_characters?: number | null
           total_directories?: number | null
           total_files_found?: number | null
           total_lines?: number | null
           tree_structure?: string | null
+          twitter_link?: string | null
           updated_at?: string
         }
         Update: {
+          ai_summary?: string | null
           analysis_data?: Json | null
           analysis_version?: number
           binary_files_skipped?: number | null
           created_at?: string
+          description?: string | null
           encoding_errors?: number | null
           estimated_size_bytes?: number | null
           estimated_tokens?: number | null
           files_processed?: number | null
+          forked_repo_url?: string | null
           id?: string
           large_files_skipped?: number | null
+          readme_image_src?: string | null
           repository_id?: string
           total_characters?: number | null
           total_directories?: number | null
           total_files_found?: number | null
           total_lines?: number | null
           tree_structure?: string | null
+          twitter_link?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -284,7 +360,8 @@ export type Database = {
           metadata: Json | null
           model_used: string | null
           parent_document_id: string | null
-          repository_id: string
+          repository_analysis_id: string | null
+          repository_id: string | null
           title: string
           updated_at: string
           version: number
@@ -293,22 +370,27 @@ export type Database = {
       get_latest_repository_analysis: {
         Args: { repo_id: string }
         Returns: {
+          ai_summary: string | null
           analysis_data: Json | null
           analysis_version: number
           binary_files_skipped: number | null
           created_at: string
+          description: string | null
           encoding_errors: number | null
           estimated_size_bytes: number | null
           estimated_tokens: number | null
           files_processed: number | null
+          forked_repo_url: string | null
           id: string
           large_files_skipped: number | null
+          readme_image_src: string | null
           repository_id: string
           total_characters: number | null
           total_directories: number | null
           total_files_found: number | null
           total_lines: number | null
           tree_structure: string | null
+          twitter_link: string | null
           updated_at: string
         }
       }
@@ -324,7 +406,11 @@ export type Database = {
           full_text_path: string | null
           id: string
           name: string
+          processing_status:
+            | Database["public"]["Enums"]["repositories_processing_status_enum"]
+            | null
           repo_url: string
+          twitter_link: string | null
           updated_at: string
         }[]
       }
@@ -334,7 +420,14 @@ export type Database = {
       }
     }
     Enums: {
-      [_ in never]: never
+      repositories_processing_status_enum:
+        | "pending"
+        | "processing"
+        | "analyzed"
+        | "docs_generated"
+        | "completed"
+        | "queued"
+        | "failed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -461,6 +554,16 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      repositories_processing_status_enum: [
+        "pending",
+        "processing",
+        "analyzed",
+        "docs_generated",
+        "completed",
+        "queued",
+        "failed",
+      ],
+    },
   },
 } as const
