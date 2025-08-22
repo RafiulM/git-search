@@ -809,7 +809,7 @@ async def post_repository_tweets(
     request: TwitterPostingRequest,
     db: DatabaseService = Depends(get_database_service),
 ):
-    """Post tweets for repositories without Twitter links (synchronous)"""
+    """Post tweets for repositories with forked knowledge bases but without Twitter links (synchronous)"""
     try:
         # Import Twitter service
         from app.services.twitter_service import twitter_service
@@ -1246,7 +1246,7 @@ async def list_twitter_posting_jobs(
 async def get_repositories_without_twitter_links(
     limit: int = 10, db: DatabaseService = Depends(get_database_service)
 ):
-    """Get repositories that don't have Twitter links"""
+    """Get repositories that have forked knowledge bases but don't have Twitter links"""
     try:
         repositories = await db.get_repositories_without_twitter_links(limit=limit)
 

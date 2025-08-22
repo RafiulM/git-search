@@ -1495,7 +1495,7 @@ class DatabaseService:
     async def get_repositories_without_twitter_links(
         self, limit: int = 50
     ) -> List[Repository]:
-        """Get repositories that don't have Twitter links (checking repository_analysis table)"""
+        """Get repositories that have forked_repo_url but don't have Twitter links"""
         try:
             # Get all repositories first
             all_repos_result = (
@@ -1513,23 +1513,26 @@ class DatabaseService:
             for repo_data in all_repos_result.data:
                 repo_id = repo_data["id"]
 
-                # Check if this repository has a twitter_link in any of its analyses
+                # Check if this repository has analysis with forked_repo_url but no twitter_link
                 analysis_result = (
                     self.client.table("repository_analysis")
-                    .select("twitter_link")
+                    .select("twitter_link, forked_repo_url")
                     .eq("repository_id", repo_id)
-                    .not_.is_("twitter_link", "null")
+                    .not_.is_("forked_repo_url", "null")  # Must have forked repo URL
                     .limit(1)
                     .execute()
                 )
 
-                # If no analysis with twitter_link found, include this repository
-                if not analysis_result.data:
-                    repositories_without_links.append(Repository(**repo_data))
+                # If repository has forked_repo_url, check if it needs Twitter posting
+                if analysis_result.data:
+                    analysis = analysis_result.data[0]
+                    # Only include if it has forked_repo_url but no twitter_link
+                    if analysis.get("forked_repo_url") and not analysis.get("twitter_link"):
+                        repositories_without_links.append(Repository(**repo_data))
 
-                    # Stop if we've reached the limit
-                    if len(repositories_without_links) >= limit:
-                        break
+                        # Stop if we've reached the limit
+                        if len(repositories_without_links) >= limit:
+                            break
 
             return repositories_without_links
 
