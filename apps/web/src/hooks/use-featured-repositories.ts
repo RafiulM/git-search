@@ -5,10 +5,11 @@ import type { Tables } from '@/types/database.types';
 interface FeaturedRepository {
   id: string;
   name: string;
-  description: string | null;
+  description?: string;
   repo_url: string;
-  author: string | null;
-  branch: string | null;
+  author?: string;
+  branch?: string;
+  processing_status: string;
   created_at: string;
   updated_at: string;
   // Add estimated stats based on repository_analysis

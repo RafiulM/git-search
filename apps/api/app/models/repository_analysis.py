@@ -23,6 +23,7 @@ class RepositoryAnalysis(DatabaseModel):
     binary_files_skipped: Optional[int] = None
     encoding_errors: Optional[int] = None
     readme_image_src: Optional[str] = None
+    twitter_link: Optional[str] = None
     ai_summary: Optional[str] = None
     description: Optional[str] = None
     forked_repo_url: Optional[str] = None

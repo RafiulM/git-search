@@ -34,9 +34,8 @@ from app.models import (
     BatchProcessing,
     BatchProcessingInsert,
     BatchProcessingUpdate,
-    TwitterPosting,
-    TwitterPostingInsert,
-    TwitterPostingUpdate,
+    RepositoryWithAnalysis,
+    RepositoryAnalysisSummary,
     Prompt,
     PromptInsert,
     PromptUpdate,
@@ -302,16 +301,33 @@ class DatabaseService:
             raise Exception(f"Database error updating repository: {str(e)}")
 
     async def list_repositories(
-        self, skip: int = 0, limit: int = 100, author: Optional[str] = None
-    ) -> tuple[List[Repository], int]:
+        self,
+        skip: int = 0,
+        limit: int = 100,
+        author: Optional[str] = None,
+        status: Optional[str] = None,
+        search: Optional[str] = None,
+    ) -> tuple[List[RepositoryWithAnalysis], int]:
         """List repositories with pagination and optional filtering"""
         try:
             # Build base query
-            query = self.client.table("repositories").select("*", count="exact")
+            query = self.client.table("repositories").select(
+                "*, repository_analysis(id, repository_id, analysis_version, total_files_found, total_directories, files_processed, tree_structure, total_lines, total_characters, estimated_tokens, estimated_size_bytes, large_files_skipped, binary_files_skipped, encoding_errors, readme_image_src, ai_summary, description, forked_repo_url, twitter_link)",
+                count="exact",
+            )
 
             # Apply author filter if provided
             if author:
                 query = query.eq("author", author)
+
+            # Apply status filter if provided
+            if status:
+                query = query.eq("processing_status", status)
+
+            # Apply search filter if provided (search in name and repo_url)
+            if search:
+                # Use Supabase text search - search in both name and repo_url
+                query = query.or_(f"name.ilike.%{search}%,repo_url.ilike.%{search}%")
 
             # Apply pagination and ordering
             result = (
@@ -320,10 +336,36 @@ class DatabaseService:
                 .execute()
             )
 
+            if not result.data:
+                return [], 0
+
             repositories = []
-            if result.data:
-                for repo in result.data:
-                    repositories.append(Repository(**repo))
+            for repo_data in result.data:
+                repo_analysis_data = (
+                    repo_data["repository_analysis"][0]
+                    if repo_data["repository_analysis"]
+                    else None
+                )
+
+                repository = Repository(**repo_data)
+
+                repo = RepositoryWithAnalysis(
+                    id=repository.id,
+                    name=repository.name,
+                    repo_url=repository.repo_url,
+                    author=repository.author,
+                    processing_status=repository.processing_status,
+                    branch=repository.branch,
+                    created_at=repository.created_at,
+                    updated_at=repository.updated_at,
+                    analysis=(
+                        RepositoryAnalysisSummary(**repo_analysis_data)
+                        if repo_analysis_data
+                        else None
+                    ),
+                )
+
+                repositories.append(repo)
 
             total_count = result.count if result.count is not None else 0
             return repositories, total_count
@@ -623,6 +665,9 @@ class DatabaseService:
                 data["analysis_data"] = json.dumps(
                     get_value("analysis_data"), cls=DateTimeEncoder
                 )
+
+            if get_value("twitter_link") is not None:
+                data["twitter_link"] = get_value("twitter_link")
 
             if get_value("ai_summary") is not None:
                 data["ai_summary"] = get_value("ai_summary")
@@ -1543,29 +1588,6 @@ class DatabaseService:
                 f"Database error getting repositories without Twitter links: {str(e)}"
             )
 
-    async def update_repository_twitter_link(
-        self, repository_id: UUID, twitter_url: str
-    ) -> Optional[Repository]:
-        """DEPRECATED: Update repository with Twitter link (now stored in repository_analysis table)"""
-        try:
-            data = {"twitter_link": twitter_url}
-
-            result = (
-                self.client.table("repositories")
-                .update(data)
-                .eq("id", str(repository_id))
-                .execute()
-            )
-
-            if result.data:
-                return Repository(**result.data[0])
-            return None
-
-        except Exception as e:
-            raise Exception(
-                f"Database error updating repository Twitter link: {str(e)}"
-            )
-
     # Prompt operations
     async def create_prompt(self, prompt_data: PromptInsert) -> Prompt:
         """Create a new prompt"""
@@ -1989,6 +2011,95 @@ class DatabaseService:
         except Exception as e:
             raise Exception(
                 f"Database error getting repositories with orphaned documents: {str(e)}"
+            )
+
+    # Bulk operations for performance optimization
+    async def get_latest_repository_analyses_bulk(
+        self, repo_ids: List[UUID]
+    ) -> Dict[UUID, Optional[RepositoryAnalysis]]:
+        """Get latest analyses for multiple repositories in one query"""
+        try:
+            if not repo_ids:
+                return {}
+
+            # Convert UUIDs to strings for Supabase query
+            str_repo_ids = [str(repo_id) for repo_id in repo_ids]
+
+            # Get all analyses for these repositories, ordered by creation date
+            result = (
+                self.client.table("repository_analysis")
+                .select("*")
+                .in_("repository_id", str_repo_ids)
+                .order("created_at", desc=True)
+                .execute()
+            )
+
+            # Group analyses by repository_id and take the latest (first) one for each
+            analyses_dict = {}
+
+            # Initialize with None for all requested repo_ids
+            for repo_id in repo_ids:
+                analyses_dict[repo_id] = None
+
+            if result.data:
+                for row_data in result.data:
+                    repo_id = UUID(row_data["repository_id"])
+
+                    # Only keep the first (latest) analysis for each repository
+                    if repo_id in analyses_dict and analyses_dict[repo_id] is None:
+                        # Parse JSON string back to dict for Pydantic model
+                        if isinstance(row_data.get("analysis_data"), str):
+                            try:
+                                row_data["analysis_data"] = json.loads(
+                                    row_data["analysis_data"]
+                                )
+                            except json.JSONDecodeError:
+                                pass
+
+                        analyses_dict[repo_id] = RepositoryAnalysis(**row_data)
+
+            return analyses_dict
+
+        except Exception as e:
+            raise Exception(
+                f"Database error getting latest repository analyses bulk: {str(e)}"
+            )
+
+    async def get_documents_by_analysis_ids_bulk(
+        self, analysis_ids: List[UUID]
+    ) -> List[Document]:
+        """Get all documents for multiple analysis IDs in one query"""
+        try:
+            if not analysis_ids:
+                return []
+
+            # Convert UUIDs to strings for Supabase query
+            str_analysis_ids = [str(analysis_id) for analysis_id in analysis_ids]
+
+            result = (
+                self.client.table("documents")
+                .select("*")
+                .in_("repository_analysis_id", str_analysis_ids)
+                .execute()
+            )
+
+            documents = []
+            if result.data:
+                for row_data in result.data:
+                    # Parse JSON metadata if it exists
+                    if isinstance(row_data.get("metadata"), str):
+                        try:
+                            row_data["metadata"] = json.loads(row_data["metadata"])
+                        except json.JSONDecodeError:
+                            pass
+
+                    documents.append(Document(**row_data))
+
+            return documents
+
+        except Exception as e:
+            raise Exception(
+                f"Database error getting documents by analysis IDs bulk: {str(e)}"
             )
 
 

@@ -71,41 +71,44 @@ export function MobileDocumentationLayout({
       </div>
 
       {/* Desktop Layout */}
-      <div className="hidden lg:flex gap-8">
+      <div className="hidden lg:flex gap-8 w-full">
         {/* Desktop Sidebar */}
-        <div className="w-64 flex-shrink-0">
-          <Card className="sticky top-4">
+        <div className="w-full max-w-sm">
+          <Card className="sticky top-4 w-full">
             <CardHeader>
               <CardTitle className="text-lg">Documentation</CardTitle>
               <CardDescription>Navigate between document types</CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
-              {allDocumentTypes.map((docType) => (
-                <Link 
-                  key={docType} 
-                  href={`/repository/${owner}/${repo}/docs/${docType}`}
-                >
-                  <Button 
-                    variant={docType === currentDocType ? "default" : "ghost"} 
-                    className="w-full justify-start"
+              {allDocumentTypes.map((docType) => {
+                const docTitle = documents.find(doc => doc.document_type === docType)?.title || docType;
+                return (
+                  <Link 
+                    key={docType} 
+                    href={`/repository/${owner}/${repo}/docs/${docType}`}
                   >
-                    {getIcon(docType)}
-                    <span className="ml-2">{docType}</span>
-                  </Button>
-                </Link>
-              ))}
+                    <Button 
+                      variant={docType === currentDocType ? "default" : "ghost"} 
+                      className="w-full justify-start"
+                    >
+                      {getIcon(docType)}
+                      <span className="ml-2">{docTitle}</span>
+                    </Button>
+                  </Link>
+                );
+              })}
             </CardContent>
           </Card>
         </div>
 
         {/* Desktop Content */}
-        <div className="flex-1">
+        <div className="flex-1 w-full">
           {children}
         </div>
       </div>
 
       {/* Mobile Content */}
-      <div className="lg:hidden">
+      <div className="lg:hidden w-full">
         {children}
       </div>
     </div>

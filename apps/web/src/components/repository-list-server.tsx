@@ -1,79 +1,160 @@
-"use client";
-
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Badge } from '@/components/ui/badge';
 import {
   BarChart3,
   FileText,
-  Zap,
-  Database,
+  Star,
+  GitFork,
   Calendar,
   ExternalLink,
+  Database,
+  Zap,
 } from "lucide-react";
 import Link from "next/link";
+import type { RepositoryWithAnalysis } from '@/lib/types/api';
 
-export interface Repository {
-  id: string;
-  name: string;
-  repo_url: string;
-  author?: string;
-  branch?: string;
-  twitter_link?: string;
-  processing_status: string;
-  created_at: string;
-  updated_at: string;
-  analysis?: {
-    total_lines?: number;
-    total_files_found?: number;
-    total_directories?: number;
-    files_processed?: number;
-    total_characters?: number;
-    estimated_tokens?: number;
-    estimated_size_bytes?: number;
-    large_files_skipped?: number;
-    binary_files_skipped?: number;
-    encoding_errors?: number;
-    readme_image_src?: string;
-    ai_summary?: string;
-    description?: string;
-    forked_repo_url?: string;
-    twitter_link?: string;
-  };
-}
-
-interface RepositoryCardsProps {
-  repositories: Repository[];
+interface RepositoryListServerProps {
+  repositories: RepositoryWithAnalysis[];
   viewMode: "list" | "grid";
+  isSearchMode: boolean;
 }
 
-export function RepositoryCards({ repositories, viewMode }: RepositoryCardsProps) {
-  const formatNumber = (num: number) => {
-    if (num >= 1000000) {
-      return (num / 1000000).toFixed(1) + 'M';
-    }
-    if (num >= 1000) {
-      return (num / 1000).toFixed(1) + 'k';
-    }
-    return num.toString();
-  };
+const formatNumber = (num: number) => {
+  if (num >= 1000000) {
+    return (num / 1000000).toFixed(1) + 'M';
+  }
+  if (num >= 1000) {
+    return (num / 1000).toFixed(1) + 'k';
+  }
+  return num.toString();
+};
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  };
+const formatDate = (dateString: string) => {
+  return new Date(dateString).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+};
 
-  const formatBytes = (bytes: number) => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
+export function RepositoryListServer({ repositories, viewMode, isSearchMode }: RepositoryListServerProps) {
+  if (repositories.length === 0) {
+    return (
+      <Card>
+        <CardContent className="text-center py-8">
+          <p className="text-muted-foreground">
+            {isSearchMode 
+              ? "No repositories found. Try adjusting your search terms." 
+              : "No repositories available. Start by searching and analyzing some repositories!"
+            }
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
+  if (isSearchMode) {
+    // GitHub search results rendering
+    const searchRepos = repositories as RepositoryWithAnalysis[];
+    
+    return (
+      <div className="space-y-3">
+        {searchRepos.map((repo) => (
+          <Card key={repo.id} className="hover:shadow-lg transition-shadow">
+            <CardContent className="p-4">
+              <div className="flex justify-between items-start">
+                <div className="flex-1">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-2">
+                    <div className="flex items-center gap-2">
+                      <Link 
+                        href={`/repository/${repo.author}/${repo.name}`}
+                        className="text-lg font-semibold text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                      >
+                        {repo.name}
+                      </Link>
+                      <a
+                        href={repo.repo_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-gray-400 hover:text-gray-600"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                      </a>
+                    </div>
+                    
+                    {/* <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                      <div className="flex items-center gap-1">
+                        <Star className="w-3 h-3" />
+                        {formatNumber(repo.stargazers_count)}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <GitFork className="w-3 h-3" />
+                        {formatNumber(repo.forks_count)}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Calendar className="w-3 h-3" />
+                        {formatDate(repo.updated_at)}
+                      </div>
+                    </div> */}
+                  </div>
+                  
+                  <p className="text-muted-foreground text-sm mb-2 line-clamp-2">
+                    {repo.analysis?.description || 'No description available'}
+                  </p>
+
+                  {/* <div className="flex flex-wrap gap-1">
+                    {repo.language && (
+                      <Badge variant="secondary" className="text-xs">{repo.language}</Badge>
+                    )}
+                    {repo.topics?.slice(0, 2).map((topic) => (
+                      <Badge key={topic} variant="outline" className="text-xs">
+                        {topic}
+                      </Badge>
+                    ))}
+                    {repo.topics?.length > 2 && (
+                      <Badge variant="outline" className="text-xs">
+                        +{repo.topics.length - 2}
+                      </Badge>
+                    )}
+                  </div> */}
+                </div>
+
+                <div className="flex flex-col gap-2 ml-4 shrink-0">
+                  {repo.analysis ? (
+                    <Link href={`/repository/${repo.author}/${repo.name}`}>
+                      <Button variant="outline" size="sm">
+                        <BarChart3 className="w-4 h-4 mr-1" />
+                        View
+                      </Button>
+                    </Link>
+                  ) : (
+                    <form action="/api/analyze" method="post">
+                      <input type="hidden" name="repo_url" value={repo.repo_url} />
+                      <Button variant="outline" size="sm" type="submit">
+                        <FileText className="w-4 h-4 mr-1" />
+                        Analyze
+                      </Button>
+                    </form>
+                  )}
+                  
+                  {repo.analysis?.created_at && (
+                    <p className="text-xs text-muted-foreground text-center">
+                      {formatDate(repo.analysis.created_at)}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
+  // Featured repositories rendering using exact styling from RepositoryCards
+  const featuredRepos = repositories as RepositoryWithAnalysis[];
+  
   // Extract owner/repo from GitHub URL
   const getOwnerRepoFromUrl = (repoUrl: string) => {
     try {
@@ -88,10 +169,18 @@ export function RepositoryCards({ repositories, viewMode }: RepositoryCardsProps
     }
   };
 
+  const formatBytes = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+  
   if (viewMode === "grid") {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {repositories.map((repo) => (
+        {featuredRepos.map((repo) => (
           <Card key={repo.id} className="hover:shadow-lg transition-all duration-200 hover:scale-[1.02]">
             <CardContent className="p-6">
               <div className="flex items-start justify-between mb-3">
@@ -187,10 +276,10 @@ export function RepositoryCards({ repositories, viewMode }: RepositoryCardsProps
     );
   }
 
-  // List view (default)
+  // List view for featured repositories
   return (
     <div className="space-y-4">
-      {repositories.map((repo) => (
+      {featuredRepos.map((repo) => (
         <Card key={repo.id} className="hover:shadow-lg transition-shadow">
           <CardContent>
             <div className="flex-1">

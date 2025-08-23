@@ -1,22 +1,36 @@
 # Models package
 
 from .base import DatabaseModel, DatabaseInsertModel, DatabaseUpdateModel, JsonData
-from .repository import Repository, RepositoryInsert, RepositoryUpdate, RepositoryResponse, RepositoryProcessingStatus
-from .document import Document, DocumentInsert, DocumentUpdate, DocumentResponse, DocumentSummary
+from .repository import (
+    Repository,
+    RepositoryInsert,
+    RepositoryUpdate,
+    RepositoryResponse,
+    RepositoryProcessingStatus,
+    RepositoryWithAnalysis,
+    RepositoryAnalysisSummary,
+)
+from .document import (
+    Document,
+    DocumentInsert,
+    DocumentUpdate,
+    DocumentResponse,
+    DocumentSummary,
+)
 from .repository_analysis import (
-    RepositoryAnalysis, 
-    RepositoryAnalysisInsert, 
-    RepositoryAnalysisUpdate, 
+    RepositoryAnalysis,
+    RepositoryAnalysisInsert,
+    RepositoryAnalysisUpdate,
     RepositoryAnalysisResponse,
-    RepositoryAnalysisStats
+    RepositoryAnalysisStats,
 )
 from .user_favorites import (
-    UserFavorites, 
-    UserFavoritesInsert, 
-    UserFavoritesUpdate, 
+    UserFavorites,
+    UserFavoritesInsert,
+    UserFavoritesUpdate,
     UserFavoritesResponse,
     FavoriteToggleRequest,
-    FavoriteStatusResponse
+    FavoriteStatusResponse,
 )
 from .repository_summary import RepositorySummary, RepositorySummaryResponse
 from .ai_summary import AISummary, AISummaryInsert, AISummaryUpdate, AISummaryResponse
@@ -29,7 +43,7 @@ from .task_models import (
     TaskListResponse,
     RepositoryInfo,
     AnalysisStats,
-    RepositoryAnalysisTaskResult
+    RepositoryAnalysisTaskResult,
 )
 from .batch_processing import (
     BatchStatus,
@@ -37,8 +51,9 @@ from .batch_processing import (
     BatchProcessingInsert,
     BatchProcessingUpdate,
     BatchProcessingResponse,
-    BatchProcessingRequest
+    BatchProcessingRequest,
 )
+
 # Old website scraping models removed - using simple_scraping instead
 from .twitter_posting import (
     TwitterPostingStatus,
@@ -47,7 +62,7 @@ from .twitter_posting import (
     TwitterPostingUpdate,
     TwitterPostingResponse,
     TwitterPostingRequest,
-    TwitterPostingTaskResponse
+    TwitterPostingTaskResponse,
 )
 from .simple_scraping import (
     SimpleScrapeStatus,
@@ -67,31 +82,28 @@ from .prompt import (
 __all__ = [
     # Base models
     "DatabaseModel",
-    "DatabaseInsertModel", 
+    "DatabaseInsertModel",
     "DatabaseUpdateModel",
     "JsonData",
-    
     # Repository models
     "Repository",
     "RepositoryInsert",
-    "RepositoryUpdate", 
+    "RepositoryUpdate",
     "RepositoryResponse",
     "RepositoryProcessingStatus",
-    
+    "RepositoryWithAnalysis",
     # Document models
     "Document",
     "DocumentInsert",
     "DocumentUpdate",
     "DocumentResponse",
     "DocumentSummary",
-    
     # Repository analysis models
     "RepositoryAnalysis",
     "RepositoryAnalysisInsert",
     "RepositoryAnalysisUpdate",
     "RepositoryAnalysisResponse",
     "RepositoryAnalysisStats",
-    
     # User favorites models
     "UserFavorites",
     "UserFavoritesInsert",
@@ -99,28 +111,24 @@ __all__ = [
     "UserFavoritesResponse",
     "FavoriteToggleRequest",
     "FavoriteStatusResponse",
-    
     # Repository summary models
     "RepositorySummary",
     "RepositorySummaryResponse",
-    
     # AI summary models
     "AISummary",
     "AISummaryInsert",
     "AISummaryUpdate",
     "AISummaryResponse",
-    
     # Task models
     "TaskStatus",
     "RepositoryAnalysisTaskRequest",
     "TaskResponse",
-    "TaskStatusResponse", 
+    "TaskStatusResponse",
     "RepositoryAnalysisResult",
     "TaskListResponse",
     "RepositoryInfo",
     "AnalysisStats",
     "RepositoryAnalysisTaskResult",
-    
     # Batch processing models
     "BatchStatus",
     "BatchProcessing",
@@ -128,7 +136,6 @@ __all__ = [
     "BatchProcessingUpdate",
     "BatchProcessingResponse",
     "BatchProcessingRequest",
-    
     # Twitter posting models
     "TwitterPostingStatus",
     "TwitterPosting",
@@ -137,14 +144,12 @@ __all__ = [
     "TwitterPostingResponse",
     "TwitterPostingRequest",
     "TwitterPostingTaskResponse",
-    
     # Simple scraping models
     "SimpleScrapeStatus",
-    "SimpleScrapeRequest", 
+    "SimpleScrapeRequest",
     "SimpleScrapeTaskResponse",
     "SimpleScrapeResult",
     "ExtractedRepoInfo",
-    
     # Prompt models
     "PromptType",
     "Prompt",

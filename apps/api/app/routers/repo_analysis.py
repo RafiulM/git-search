@@ -915,7 +915,7 @@ async def post_repository_tweets(
                     "id": str(repository.id),
                     "name": repository.name,
                     "author": repository.author,
-                    "repo_url": repository.repo_url,
+                    "repo_url": analysis.forked_repo_url,  # Use forked repo URL which includes the knowledge base
                     "description": analysis.description,
                 }
 
@@ -1213,32 +1213,6 @@ async def get_twitter_posting_status(posting_id: UUID):
         logger.error(f"Failed to get Twitter posting status: {str(e)}")
         raise HTTPException(
             status_code=500, detail=f"Failed to get Twitter posting status: {str(e)}"
-        )
-
-
-@router.get("/twitter/post")
-async def list_twitter_posting_jobs(
-    skip: int = 0,
-    limit: int = 10,
-    status: Optional[str] = None,
-    db: DatabaseService = Depends(get_database_service),
-):
-    """List Twitter posting jobs with pagination"""
-    try:
-        # This would need a list method in DatabaseService for Twitter posting
-        # For now, return a basic structure
-        return {
-            "posting_jobs": [],
-            "total": 0,
-            "page": skip // limit + 1 if limit > 0 else 1,
-            "per_page": limit,
-            "has_more": False,
-            "message": "Twitter posting listing not yet implemented",
-        }
-
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to list Twitter posting jobs: {str(e)}"
         )
 
 
@@ -1782,10 +1756,10 @@ async def auto_fork_repository(
     try:
         # Get fork management service
         fork_service = get_fork_management_service(db)
-        
+
         # Execute auto fork operation
         result, error = await fork_service.auto_fork_repository()
-        
+
         if error:
             if "not available" in error:
                 raise HTTPException(status_code=503, detail=error)
@@ -1793,7 +1767,7 @@ async def auto_fork_repository(
                 raise HTTPException(status_code=404, detail=error)
             else:
                 raise HTTPException(status_code=500, detail=error)
-        
+
         return result
 
     except HTTPException:

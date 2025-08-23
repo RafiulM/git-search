@@ -217,7 +217,7 @@ export default function FavoritesPage() {
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <Link href="/search">
+              <Link href="/">
                 <Button variant="ghost" size="sm">
                   <ArrowLeft className="w-4 h-4 mr-1" />
                   Back to Search
@@ -284,7 +284,7 @@ export default function FavoritesPage() {
               <p className="text-muted-foreground mb-4">
                 No repositories have been favorited yet. Start exploring and favoriting repositories!
               </p>
-              <Link href="/search">
+              <Link href="/">
                 <Button>
                   Start Searching
                 </Button>
